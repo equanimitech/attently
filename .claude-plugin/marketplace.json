@@ -3,7 +3,7 @@
   "owner": { "name": "EquanimiTech", "url": "https://equanimi.tech" },
   "metadata": {
     "description": "Adaptive granularity for AI assistants — answers that open at the verdict and descend only where you ask.",
-    "version": "0.1.0"
+    "version": "0.1.1"
   },
   "plugins": [
     {
