@@ -1,0 +1,20 @@
+{
+  "name": "attently",
+  "version": "0.1.0",
+  "description": "Adaptive granularity for AI assistants. Sorts every reply by what it costs you to read — the verdict at a glance, the working one click away, unexplored branches only if you ask. Stores nothing, blocks nothing, watches nothing.",
+  "author": {
+    "name": "EquanimiTech",
+    "url": "https://equanimi.tech"
+  },
+  "homepage": "https://equanimi.tech",
+  "repository": "https://github.com/equanimitech/attently",
+  "license": "MIT",
+  "keywords": [
+    "granularity",
+    "attention",
+    "semantic-zoom",
+    "progressive-disclosure",
+    "calm-technology",
+    "equanimitech"
+  ]
+}

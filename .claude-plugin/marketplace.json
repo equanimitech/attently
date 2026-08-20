@@ -1,0 +1,17 @@
+{
+  "name": "attently",
+  "owner": { "name": "EquanimiTech", "url": "https://equanimi.tech" },
+  "metadata": {
+    "description": "Adaptive granularity for AI assistants — answers that open at the verdict and descend only where you ask.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "attently",
+      "source": "./",
+      "description": "Adaptive granularity for AI assistants. The verdict at a glance, the working one click away, unexplored branches only if you ask.",
+      "category": "productivity",
+      "keywords": ["granularity", "attention", "semantic-zoom", "progressive-disclosure", "calm-technology"]
+    }
+  ]
+}
