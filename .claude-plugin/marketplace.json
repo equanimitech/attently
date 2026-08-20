@@ -11,7 +11,7 @@
       "source": "./",
       "description": "Adaptive granularity for AI assistants. The verdict at a glance, the working one click away, unexplored branches only if you ask.",
       "category": "productivity",
-      "keywords": ["granularity", "attention", "semantic-zoom", "progressive-disclosure", "calm-technology"]
+      "keywords": ["granularity", "attention", "response-depth", "progressive-disclosure", "calm-technology"]
     }
   ]
 }

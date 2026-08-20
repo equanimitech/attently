@@ -1,6 +1,6 @@
 ---
 name: linking-the-working
-description: Persist the reasoning behind a terse answer to a file and link it by absolute path, so depth is one click away instead of one turn away. Use after substantial investigation — reading code, specs, logs, or many files — whose conclusion fits in a few lines and whose evidence would otherwise be discarded. Also use when the user asks for a short answer to a question that took real work, says "keep the detail somewhere", or is working across several sessions at once and cannot absorb long replies.
+description: Persist the reasoning behind a terse answer into a small project wiki and link it by absolute path, so depth is one click away instead of one turn away. Use after substantial investigation — reading code, specs, logs, or many files — whose conclusion fits in a few lines and whose evidence would otherwise be discarded. Also use when the user asks for a short answer to a question that took real work, says "keep the detail somewhere", or is running several sessions at once and cannot absorb long replies.
 ---
 
 # Linking the working
@@ -15,37 +15,57 @@ expensive part. The files read, the approaches weighed, the two options killed a
 it exists in context at the moment of answering and is gone the moment the reply is sent.
 
 Writing it costs almost nothing, because the work is already done. Not writing it means the
-next person to ask must pay for it again.
+next person to ask pays for it again.
 
-## When to write one
+## It is a wiki, not a pile of scratch files
 
-Write a file when **all** of these hold:
+Dated one-off files litter and never get reread. Pages named by **subject** accumulate into
+something worth opening twice.
+
+```
+.claude/attently/
+├── index.md                    entry point — every page, one line each
+├── granularity-signals.md
+├── hook-delivery.md
+└── plugin-packaging.md
+```
+
+Four rules make it compound rather than sprawl:
+
+1. **One page per subject**, named for the subject. Never dated, never `notes-2.md`.
+2. **Revisit, don't re-add.** Investigating the same subject again *edits that page*. Append a
+   short dated note under the existing sections rather than starting a new file.
+3. **Cross-link with** `[[page-name]]`. A link to a page that does not exist yet is fine — it
+   marks a subject worth writing, not an error.
+4. **`index.md` stays current.** One line per page: `- [[page-name]] — the hook.` If a page is
+   not in the index, it does not exist.
+
+## When to write or update a page
+
+All of these must hold:
 
 - Real investigation happened — multiple files, commands, or sources.
 - The conclusion is short enough to glance at.
 - The evidence would otherwise be discarded.
 
-Do **not** write one for a conversational answer, a restatement of the reply at greater length,
-or "in case it's useful". A file that returns nothing new costs a click and repays nothing —
-worse than no file.
+Do **not** write for a conversational answer, a restatement of the reply at greater length, or
+"in case it's useful". A page that returns nothing new costs a click and repays nothing.
 
-## What goes in it
+## What goes on a page
 
 Not a longer version of the answer. The parts that did not fit:
 
-1. **What was examined** — paths, line numbers, commands run, with their actual output.
+1. **What was examined** — paths, line numbers, commands, with their actual output.
 2. **What was weighed** — the options considered.
 3. **What was rejected, and why** — usually the most valuable section and the first one dropped.
-4. **What remains unknown** — the branches nobody has walked yet.
+4. **What remains unknown** — branches nobody has walked yet.
 
 ## Mechanics
 
-- Write to a scratch location, not the user's tree: `.claude/attently/<slug>.md` under the
-  project, or the session's temp directory. Never leave files in source directories.
-- Link by **absolute** path in the reply. Many terminals and editors make absolute markdown
-  paths clickable; relative ones do not resolve.
-- One line of framing, then the link. Do not summarize the file — that defeats the split.
-- Name files by subject, not date: the reader is looking for a topic.
+- Write under `.claude/attently/` in the project. Never leave files in source directories.
+- Link by **absolute** path in the reply — many terminals make absolute markdown paths
+  clickable, relative ones do not resolve.
+- One line of framing, then the link. Do not summarize the page; that defeats the split.
 
 ## Shape of the reply
 
@@ -58,7 +78,7 @@ understand the answer.
 
 ## Anti-patterns
 
-- **Summarizing the file in the reply.** If the summary were enough, the file is padding.
+- **Summarizing the page in the reply.** If the summary were enough, the page is padding.
 - **Linking to something not yet written.** Write it first; a dead link is worse than silence.
-- **Writing every turn.** The signal that a file is worth opening is that it is rare.
-- **Relative paths.** They do not resolve from the reader's terminal.
+- **Writing every turn.** The signal a page is worth opening is that it is rare.
+- **Dated filenames.** They guarantee the wiki never gets reread.

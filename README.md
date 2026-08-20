@@ -13,7 +13,7 @@ attently makes **gross-to-subtle the default**, and depth something you reach fo
 | Tier | Cost | Holds | Lives in |
 |---|---|---|---|
 | **Glance** | 0s | the verdict | the reply |
-| **Click** | ~2s | the working — read, weighed, rejected | a file, linked by absolute path |
+| **Click** | ~2s | the working — read, weighed, rejected | a project wiki, linked by absolute path |
 | **Ask** | a turn | the branch not taken | nowhere yet |
 
 These are **different content**, not one answer at three lengths. A rung ladder re-renders the
@@ -28,12 +28,22 @@ The posture has to be the default, not the thing you invoke after you have alrea
 four paragraphs. attently injects the contract at session start and a one-line reminder on every
 turn — roughly twenty tokens, the price of it actually binding.
 
+## The click tier is a wiki
+
+Depth does not go into dated scratch files that are never reread. It goes into
+`.claude/attently/` as pages named by subject, cross-linked with `[[wikilinks]]` and fronted by
+an `index.md`. Investigating the same subject twice edits the page rather than adding another.
+
+The click tier compounds instead of littering.
+
 ## What it does not do
 
 - **No state.** No dial, no ceiling, no per-day setting to spring back.
 - **No observation.** It reads nothing about you — not your calendar, your body, your session
   count. The contract is a constant, so there is nothing to watch you with.
 - **No blocking.** It never denies a tool or fails a turn. Always exits 0.
+- **No runtime dependency.** The hook is `bash` and `cat`; the injected text is data under
+  `contract/`, auditable and editable without touching code.
 
 Depth is rationed by what an answer costs to read, and the only thing that raises it is you
 asking.
@@ -45,21 +55,20 @@ asking.
 /plugin install attently
 ```
 
+Self-contained. Nothing else to install, and it depends on no other plugin or skill.
+
 ## Components
 
-- `skills/glance-click-ask` — the depth contract and its defaults
-- `skills/linking-the-working` — how to persist the working and link it
-- `hooks/` — session-start contract, per-turn reminder
+| Skill | Owns |
+|---|---|
+| `glance-click-ask` | the contract and its defaults |
+| `writing-the-glance` | the verdict tier — lead with the claim, cut what earns nothing |
+| `scan-first-rendering` | tables, small diagrams, structure over paragraphs |
+| `depth-ladder` | five rungs, for when one claim needs several resolutions |
+| `linking-the-working` | the click tier — the project wiki and how to link it |
 
-## Renderers
-
-attently owns the *posture*, not the prose. The glance tier renders prose-dense
-(`smart-brevity`) or scan-first (`visual-pitch`) depending on audience; `semantic-zoom` owns the
-rung ladder for the cases where one claim genuinely needs several depths.
-
-> **Open question:** those renderers are currently referenced, not bundled. Vendoring them makes
-> attently self-contained but forks them; calling them keeps one source of truth but assumes the
-> user has them. Unresolved.
+`hooks/` carries the session-start contract and the per-turn reminder; `contract/` holds their
+text as data.
 
 ## Parked
 

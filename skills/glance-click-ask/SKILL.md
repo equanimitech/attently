@@ -56,6 +56,11 @@ in one clause and let the reader spend the turn if they want it.
 
 ## Renderers
 
-The glance tier is prose-dense (`smart-brevity`) or scan-first (`visual-pitch`) depending on
-audience. `semantic-zoom` owns the rung ladder when the same claim genuinely does need
-re-rendering at several depths. `elements-of-style` compresses whatever is left.
+attently owns the posture; these own the prose, and all ship with it:
+
+- `writing-the-glance` — the verdict tier: lead with the claim, cut what earns nothing.
+- `scan-first-rendering` — tables, small diagrams, and structure when content is faster seen
+  than read.
+- `depth-ladder` — the five-rung ladder, for the cases where one claim genuinely needs several
+  resolutions.
+- `linking-the-working` — the click tier: persist the evidence into a project wiki and link it.
