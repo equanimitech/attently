@@ -70,6 +70,13 @@ Self-contained. Nothing else to install, and it depends on no other plugin or sk
 `hooks/` carries the session-start contract and the per-turn reminder; `contract/` holds their
 text as data.
 
+The injected contract is deliberately a **cue that routes**, not a rule that stands alone. An
+injection complete enough to act on substitutes for the skill it should be triggering — the
+assistant reads the paraphrase, feels informed, and never loads the thing that actually knows
+how. So both contract files name the skill that owns each tier, and the deeper tiers carry
+triggers countable before replying (`linking-the-working` fires at three or more sources)
+rather than ones resolved by taste.
+
 ## Parked
 
 **Sigils** — `~` capture for later, `}` deeper, `{` subtler, parsed on the turn boundary as a

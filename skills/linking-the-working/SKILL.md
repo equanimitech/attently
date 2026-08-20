@@ -1,6 +1,6 @@
 ---
 name: linking-the-working
-description: Persist the reasoning behind a terse answer into a small project wiki and link it by absolute path, so depth is one click away instead of one turn away. Use after substantial investigation — reading code, specs, logs, or many files — whose conclusion fits in a few lines and whose evidence would otherwise be discarded. Also use when the user asks for a short answer to a question that took real work, says "keep the detail somewhere", or is running several sessions at once and cannot absorb long replies.
+description: Persist the reasoning behind a terse answer into a small project wiki and link it by absolute path, so depth is one click away instead of one turn away. Use whenever three or more files, commands, or sources fed an answer that fits in a few lines — that count is the trigger, and it is checkable before replying rather than a matter of taste. Also use when the user asks for a short answer to a question that took real work, says "keep the detail somewhere", or is running several sessions at once and cannot absorb long replies.
 ---
 
 # Linking the working
