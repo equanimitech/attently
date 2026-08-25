@@ -1,6 +1,6 @@
 {
   "name": "attently",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Adaptive granularity for AI assistants. Sorts every reply by what it costs you to read — the verdict at a glance, the working one click away, unexplored branches only if you ask. Stores nothing, blocks nothing, watches nothing.",
   "author": {
     "name": "EquanimiTech",

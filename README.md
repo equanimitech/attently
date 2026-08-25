@@ -13,7 +13,7 @@ attently makes **gross-to-subtle the default**, and depth something you reach fo
 | Tier | Cost | Holds | Lives in |
 |---|---|---|---|
 | **Glance** | 0s | the verdict | the reply |
-| **Click** | ~2s | the working — read, weighed, rejected | a project wiki, linked by absolute path |
+| **Click** | ~2s | the working — read, weighed, rejected | a global wiki, linked by absolute path |
 | **Ask** | a turn | the branch not taken | nowhere yet |
 
 These are **different content**, not one answer at three lengths. A rung ladder re-renders the
@@ -31,7 +31,7 @@ turn — roughly twenty tokens, the price of it actually binding.
 ## The click tier is a wiki
 
 Depth does not go into dated scratch files that are never reread. It goes into
-`.claude/attently/` as pages named by subject, cross-linked with `[[wikilinks]]` and fronted by
+`~/.claude/attently/` as pages named by subject, cross-linked with `[[wikilinks]]` and fronted by
 an `index.md`. Investigating the same subject twice edits the page rather than adding another.
 
 The click tier compounds instead of littering.
