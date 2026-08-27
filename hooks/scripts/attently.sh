@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# attently — adaptive granularity for AI assistants.
+# attently -- gross-to-subtle communication for AI assistants.
 #
 # Emits a depth contract on the turn boundary. That is the whole program.
 #
@@ -8,9 +8,9 @@
 # nothing here to observe anyone with. Depth is rationed by what an answer costs to read, and
 # the only thing that raises it is the reader asking.
 #
-# Deliberately bash, not node: the payload is constant text, so requiring a JavaScript runtime
-# would add a dependency to `cat`. The contract lives in ../contract/*.md as data — editable
-# without touching code, and readable by anyone auditing what the plugin injects.
+# SessionStart injects the full ambient ruleset (contract + rendering rules + wiki trigger) as
+# additionalContext so it lands as system context. UserPromptSubmit emits a one-line nudge as
+# raw text.
 #
 # Always exits 0. attently never blocks a turn.
 
@@ -23,9 +23,36 @@ ROOT="$(cd "$DIR/../.." && pwd)"
 # never sees EPIPE.
 cat >/dev/null 2>&1 || true
 
+# Escape string for JSON embedding using bash parameter substitution.
+escape_for_json() {
+    local s="$1"
+    s="${s//\\/\\\\}"
+    s="${s//\"/\\\"}"
+    s="${s//$'\n'/\\n}"
+    s="${s//$'\r'/\\r}"
+    s="${s//$'\t'/\\t}"
+    printf '%s' "$s"
+}
+
 case "${2:-}" in
-  session-start) [ -f "$ROOT/contract/session-start.md" ] && cat "$ROOT/contract/session-start.md" ;;
-  user-submit)   [ -f "$ROOT/contract/turn.md" ]          && cat "$ROOT/contract/turn.md" ;;
+  session-start)
+    [ -f "$ROOT/contract/session-start.md" ] || exit 0
+    content=$(cat "$ROOT/contract/session-start.md")
+    escaped=$(escape_for_json "$content")
+
+    # Platform detection: Claude Code, Cursor, Copilot CLI, or unknown.
+    # Uses printf instead of heredoc to work around bash 5.3+ heredoc hang.
+    if [ -n "${CURSOR_PLUGIN_ROOT:-}" ]; then
+      printf '{\n  "additional_context": "%s"\n}\n' "$escaped" | cat
+    elif [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -z "${COPILOT_CLI:-}" ]; then
+      printf '{\n  "hookSpecificOutput": {\n    "hookEventName": "SessionStart",\n    "additionalContext": "%s"\n  }\n}\n' "$escaped" | cat
+    else
+      printf '{\n  "additionalContext": "%s"\n}\n' "$escaped" | cat
+    fi
+    ;;
+  user-submit)
+    [ -f "$ROOT/contract/turn.md" ] && cat "$ROOT/contract/turn.md"
+    ;;
   *) : ;;
 esac
 

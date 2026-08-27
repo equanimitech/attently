@@ -1,6 +1,6 @@
 ---
 name: depth-ladder
-description: Render one claim at a chosen depth, or at several depths at once, using a fixed five-rung ladder from sentence to report. Use when the user asks for "the short version", "expand on that", "go deeper", "give me a page on this", "all the levels", or when authoring a document that must serve both a skimming and a studying reader. Distinct from glance/click/ask, which splits different content across tiers rather than re-rendering the same claim.
+description: "Deep reference for multi-resolution rendering. The five-rung ladder (sentence to report) is mentioned in the session-start injection; load this skill for the full rung definitions, composition rules, and when authoring a document at multiple granularities at once. Use when the user asks for \"all the levels\", \"expand on that\", or \"give me a page on this\"."
 ---
 
 # The depth ladder

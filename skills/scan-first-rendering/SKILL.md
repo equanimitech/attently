@@ -1,6 +1,6 @@
 ---
 name: scan-first-rendering
-description: Render content to be understood by skimming — tables, comparisons, small diagrams, and structural cues instead of prose paragraphs. Use when output contains comparisons, sequences, hierarchies, before/after states, tradeoffs, or option sets; when the reader will skim before deciding to read; or when a draft has become several paragraphs that each carry only one fact.
+description: "Deep reference for scan-first rendering. The form-from-shape table and 3-line-max rule are injected at session start; load this skill only for the full when-not-to-use guidance and structural-cue details. Use when a draft has become several paragraphs that each carry only one fact."
 ---
 
 # Scan-first rendering

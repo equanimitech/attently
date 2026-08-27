@@ -1,6 +1,6 @@
 ---
 name: linking-the-working
-description: Persist the reasoning behind a terse answer into a small project wiki and link it by absolute path, so depth is one click away instead of one turn away. Use whenever three or more files, commands, or sources fed an answer that fits in a few lines — that count is the trigger, and it is checkable before replying rather than a matter of taste. Also use when the user asks for a short answer to a question that took real work, says "keep the detail somewhere", or is running several sessions at once and cannot absorb long replies.
+description: "Deep reference for the click-tier wiki. The 3+ sources trigger, naming convention, and cross-linking rules are injected at session start; load this skill only for wiki mechanics, anti-patterns, and the revisit-don't-re-add protocol. Use when the user says \"keep the detail somewhere\" or when wiki page structure needs attention."
 ---
 
 # Linking the working

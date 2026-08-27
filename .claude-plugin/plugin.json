@@ -1,7 +1,7 @@
 {
   "name": "attently",
-  "version": "0.1.3",
-  "description": "Adaptive granularity for AI assistants. Sorts every reply by what it costs you to read — the verdict at a glance, the working one click away, unexplored branches only if you ask. Stores nothing, blocks nothing, watches nothing.",
+  "version": "0.2.0",
+  "description": "Gross-to-subtle communication for AI assistants. The depth contract and rendering rules from Vipassana meditation applied to how AI responds: verdict first, structure over prose, depth on demand. Stores nothing, blocks nothing, watches nothing.",
   "author": {
     "name": "EquanimiTech",
     "url": "https://equanimi.tech"
@@ -12,6 +12,8 @@
   "keywords": [
     "granularity",
     "attention",
+    "vipassana",
+    "gross-to-subtle",
     "response-depth",
     "progressive-disclosure",
     "calm-technology",

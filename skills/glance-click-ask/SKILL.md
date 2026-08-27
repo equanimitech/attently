@@ -1,6 +1,6 @@
 ---
 name: glance-click-ask
-description: Ration response depth by what it costs the reader rather than by word count. Use when deciding how long or deep a reply should be, when a reply is growing past a few lines, when the user says "too much detail", "shorter", "tl;dr", "go deeper", or "expand", when depth must be rationed across many parallel sessions, or when choosing between answering inline, writing a linked file, and spending a turn.
+description: "Deep reference for the depth contract. The essential rules are injected at session start; load this skill only for edge cases, anti-patterns, and the full rationale. Use when the user says \"too much detail\", \"shorter\", \"tl;dr\", \"go deeper\", or \"expand\", or when rationing depth across many parallel sessions."
 ---
 
 # Glance · Click · Ask

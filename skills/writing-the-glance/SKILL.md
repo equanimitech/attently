@@ -1,6 +1,6 @@
 ---
 name: writing-the-glance
-description: Write the verdict tier — the reply itself — so it lands in one read. Use whenever composing a response, a summary, a status update, a commit message, a PR description, or any message whose first two lines decide whether the rest gets read. Also use when a draft is too long, hedged, or buries its conclusion, or when the reader has said "shorter", "too much detail", or "get to the point".
+description: "Deep reference for verdict-tier prose. The essential rules (lead with claim, cut throat-clearing, one idea per line) are injected at session start; load this skill only for the full delete-on-sight list, anti-patterns, and the glance test. Use when a draft buries its conclusion or the reader has said \"shorter\" or \"get to the point\"."
 ---
 
 # Writing the glance
