@@ -92,4 +92,4 @@ Name the unexplored branch in one clause. Do not pre-emptively explore it.
 ## Related skills
 
 - `visual-pitch` -- scannable page-level output: hook diagrams, emoji nav, visual-per-section.
-- `aperture-level` -- the five levels (sentence to report), for when one claim needs several resolutions.
+- `setting` -- the five aperture settings (sentence to report), for when one claim needs several resolutions.
