@@ -15,34 +15,18 @@ aperture applies the equanimitech pyramid (Sovereignty, Awareness, Equanimity) t
 
 ## The contract
 
-| Tier | Cost | Holds | Lives in |
-|---|---|---|---|
-| **Glance** | 0s | the verdict | the reply |
-| **Click** | ~2s | the working: read, weighed, rejected | a wiki, linked by absolute path |
-| **Ask** | a turn | the branch not taken | nowhere yet |
+| Tier | Cost | Holds |
+|---|---|---|
+| **Glance** | 0s | the verdict, in the reply |
+| **Ask** | a turn | the branch not taken, named but unexplored |
 
-These are **different content**, not one answer at three lengths. A rung ladder re-renders the
-same claim longer; this splits it. That is why stopping after the glance misses nothing -- you
-have the conclusion, not an abridgement of it.
+These are **different content**, not one answer at two lengths. Stopping after the glance misses
+nothing -- you have the conclusion, not an abridgement of it.
 
 ## How it works
 
-A thin SessionStart hook injects an 8-line cue establishing the posture. The full contract,
-rendering rules, and wiki mechanics live in the `glance-click-ask` skill, loaded on demand.
-
-The hook is deliberately minimal: it names the three tiers and the core defaults so the model
-has the posture before its first response. Everything else is in the skill.
-
-## The click tier is a wiki
-
-Depth does not go into dated scratch files that are never reread. It goes into
-`.claude/aperture/` as pages named by subject, cross-linked with `[[wikilinks]]` and fronted by
-an `index.md`. Investigating the same subject twice edits the page rather than adding another.
-
-The trigger is countable: **3 or more files, commands, or sources** fed the answer. That number
-is checkable before replying rather than resolved by taste.
-
-The click tier compounds instead of littering.
+A thin SessionStart hook injects a 4-line cue establishing the posture. The full contract and
+rendering rules live in the `glance-click-ask` skill, loaded on demand.
 
 ## What it does not do
 
@@ -53,36 +37,23 @@ The click tier compounds instead of littering.
 - **No runtime dependency.** The hook is `bash` and `cat`; the injected text is data under
   `contract/`, auditable and editable without touching code.
 
-Depth is rationed by what an answer costs to read, and the only thing that raises it is you
-asking.
-
 ## Install
 
 ```
 /install equanimitech/aperture
 ```
 
-Self-contained. Nothing else to install, and it depends on no other plugin or skill.
-
 ## Components
 
 | Component | Owns |
 |---|---|
-| `contract/session-start.md` | 8-line cue: the three tiers + core defaults |
+| `contract/session-start.md` | 4-line cue: the posture + core defaults |
 
 | Skill | Owns |
 |---|---|
-| `glance-click-ask` | the full contract: rendering rules, wiki mechanics, anti-patterns |
+| `glance-click-ask` | the full contract: rendering rules, anti-patterns |
 | `visual-pitch` | scannable page-level output: hook diagrams, emoji nav, visual-per-section |
 | `setting` | the five aperture settings (sentence to report) |
-
-`contract/` holds the cue as data -- auditable and editable without touching code.
-
-## Parked
-
-**Sigils** -- `~` capture for later, `}` deeper, `{` subtler, parsed on the turn boundary as a
-per-turn override. Deliberately not built: they are the override for a default that has to
-prove itself first.
 
 ---
 

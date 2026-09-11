@@ -33,8 +33,7 @@ check "produces valid JSON" \
 ctx=$(printf '%s' "$output" | python3 -c "import json,sys; print(json.load(sys.stdin)['hookSpecificOutput']['additionalContext'])" 2>/dev/null || echo "")
 
 check "uses hookSpecificOutput.additionalContext" '[ -n "$ctx" ]'
-check "contains depth tiers" '[[ "$ctx" == *"Glance"* ]]'
-check "contains wiki pointer" '[[ "$ctx" == *".claude/aperture/"* ]]'
+check "contains verdict-first" '[[ "$ctx" == *"Verdict first"* ]]'
 check "routes to skill" '[[ "$ctx" == *"aperture:glance-click-ask"* ]]'
 check "opens with aperture tag" '[[ "$ctx" == *"[aperture]"* ]]'
 

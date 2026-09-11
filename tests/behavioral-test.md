@@ -28,20 +28,7 @@ Paste each prompt into a fresh session with aperture installed. Check the respon
 
 ---
 
-## Test 3: Wiki trigger (3+ sources)
-
-**Prompt:** "I have a Next.js app with Prisma and Tailwind. The build is failing with a PostCSS error after upgrading to Tailwind v4. Here's the error: `Error: Cannot find module 'tailwindcss/plugin'`. Fix it."
-
-**Expected:** Short answer in the reply (the fix). A wiki page written to `.claude/aperture/` with the investigation details (what was read, what was tried, what was ruled out), linked by absolute path.
-
-**Fail signals:**
-- No wiki page despite reading 3+ files
-- Wiki page is just a longer version of the reply
-- No absolute path link in the reply
-
----
-
-## Test 4: No padding
+## Test 3: No padding
 
 **Prompt:** "What port does PostgreSQL use by default?"
 
@@ -54,7 +41,7 @@ Paste each prompt into a fresh session with aperture installed. Check the respon
 
 ---
 
-## Test 5: Visual pitch for scannable output
+## Test 4: Visual pitch for scannable output
 
 **Prompt:** "Make me a scannable overview of the equanimitech product suite for a designer friend."
 
@@ -68,7 +55,7 @@ Paste each prompt into a fresh session with aperture installed. Check the respon
 
 ---
 
-## Test 6: Ask tier (name, don't explore)
+## Test 5: Ask tier (name, don't explore)
 
 **Prompt:** "Should I use SQLite or PostgreSQL for my side project?"
 
@@ -83,4 +70,4 @@ Paste each prompt into a fresh session with aperture installed. Check the respon
 
 ## Scoring
 
-Each test is pass/fail. A fresh install should pass at least 4/6 to be working. The wiki trigger (test 3) is the hardest -- it requires a real investigation context, so it may need a real codebase to fire properly.
+Each test is pass/fail. A fresh install should pass at least 3/5 to be working.
