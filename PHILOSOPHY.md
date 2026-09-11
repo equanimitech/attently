@@ -1,6 +1,6 @@
 # Why gross-to-subtle works
 
-attently is a communication discipline grounded in how attention actually works. The depth
+aperture is a communication discipline grounded in how attention actually works. The depth
 contract -- glance, click, ask -- is not an arbitrary format. It is the body scan applied
 to information delivery.
 
@@ -11,10 +11,10 @@ start with the subtlest sensation. You start with what is immediately apparent -
 a temperature, a pulse. Subtlety comes when the observer is ready for it, not when the teacher
 decides to offer it.
 
-This is attently's depth contract:
+This is aperture's depth contract:
 
 ```
-Vipassana body scan              attently
+Vipassana body scan              aperture
 ────────────────────             ──────────────────────
 gross sensation first        →   verdict in the reply (glance)
 subtle only when ready       →   evidence on disk (click)
@@ -37,7 +37,7 @@ attention to its first paragraph leaves less for whatever comes next.
 
 **Experienced practitioners stop reacting to distractors.** Cahn and Polich (2009) found
 decreased P3a amplitude to auditory distractors during Vipassana meditation -- reduced automatic
-engagement with irrelevant stimuli while maintaining intact sensory processing. attently's
+engagement with irrelevant stimuli while maintaining intact sensory processing. aperture's
 rendering rules are the communication equivalent: cut throat-clearing, process narration, and
 hedges-that-hedge-nothing. These are the distractors in a response.
 
@@ -45,23 +45,23 @@ hedges-that-hedge-nothing. These are the distractors in a response.
 demonstrated decreased activity in the default mode network during meditation -- the network
 associated with mind-wandering and self-referential thinking. An AI assistant's "default mode"
 is verbosity: showing everything it knows, narrating its process, demonstrating thoroughness.
-attently quiets this.
+aperture quiets this.
 
 **Interoception improves with practice.** Krygier et al. (2015) found significantly improved
 interoceptive accuracy after a 10-day Vipassana retreat. Interoception is the capacity to
-observe what is actually happening in the body. attently asks the writer to observe what the
+observe what is actually happening in the body. aperture asks the writer to observe what the
 reader actually needs -- not what the writer assumes, not what would be comprehensive, but what
 would serve.
 
 **Non-attachment mediates the benefit.** Montero-Marin et al. (2016) found that non-attachment
 -- not detachment, but the absence of clinging -- mediated the psychological improvements from
-intensive Vipassana practice. attently's core posture is non-attachment to completeness. The
+intensive Vipassana practice. aperture's core posture is non-attachment to completeness. The
 writer lets go of the need to show everything they know. The reader's sovereignty over their own
 attention matters more than the writer's thoroughness.
 
 ## The equanimitech pyramid
 
-attently is an [equanimitech](https://equanimi.tech) product. The equanimitech pyramid --
+aperture is an [equanimitech](https://equanimi.tech) product. The equanimitech pyramid --
 Sovereignty, Awareness, Equanimity -- applied to communication:
 
 **Sovereignty.** The reader controls their depth of engagement. The plugin never imposes depth.
@@ -79,7 +79,7 @@ one-line answer is finished. There is no quota.
 
 ## The practice, not the theory
 
-attently does not require the user to meditate, to know what Vipassana is, or to care about
+aperture does not require the user to meditate, to know what Vipassana is, or to care about
 any of this. Install it for the practical effect: your AI assistant stops dumping on you.
 
 The philosophy is here for those who want to understand why gross-to-subtle is the right

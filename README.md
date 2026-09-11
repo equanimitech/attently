@@ -1,4 +1,4 @@
-# attently
+# aperture
 
 **Gross-to-subtle communication for AI assistants.**
 
@@ -6,12 +6,12 @@ Assistants answer at whatever length feels proportionate to the question. That i
 axis. Length should be rationed by what a reply costs *the reader* -- especially a reader running
 several sessions at once, where every answer competes with three others for the same attention.
 
-attently makes **gross-to-subtle the default**, and depth something you reach for.
+aperture makes **gross-to-subtle the default**, and depth something you reach for.
 
 The method comes from Vipassana meditation: observe what is immediately apparent first, deepen
 only when the observer is ready. The same attentional discipline that works on the cushion works
 in a terminal. See [PHILOSOPHY.md](PHILOSOPHY.md) for the neuroscience behind this and how
-attently applies the equanimitech pyramid (Sovereignty, Awareness, Equanimity) to communication.
+aperture applies the equanimitech pyramid (Sovereignty, Awareness, Equanimity) to communication.
 
 ## The contract
 
@@ -38,14 +38,14 @@ injection carries everything a session needs to change behavior.
 A skill governs when it is remembered. A turn-boundary hook governs because it arrives.
 
 The posture has to be the default, not the thing you invoke after you have already been handed
-four paragraphs. attently injects the contract at session start and a one-line reminder on every
+four paragraphs. aperture injects the contract at session start and a one-line reminder on every
 turn. The rendering rules ride along with the contract so the assistant knows *how*, not just
 *what*.
 
 ## The click tier is a wiki
 
 Depth does not go into dated scratch files that are never reread. It goes into
-`.claude/attently/` as pages named by subject, cross-linked with `[[wikilinks]]` and fronted by
+`.claude/aperture/` as pages named by subject, cross-linked with `[[wikilinks]]` and fronted by
 an `index.md`. Investigating the same subject twice edits the page rather than adding another.
 
 The trigger is countable: **3 or more files, commands, or sources** fed the answer. That number
@@ -68,7 +68,7 @@ asking.
 ## Install
 
 ```
-/install equanimitech/attently
+/install equanimitech/aperture
 ```
 
 Self-contained. Nothing else to install, and it depends on no other plugin or skill.

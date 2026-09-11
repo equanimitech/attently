@@ -1,4 +1,4 @@
-[attently] ▤ Gross to subtle. Depth sorted by what it costs the reader, not by how much the writer knows.
+[aperture] ▤ Gross to subtle. Depth sorted by what it costs the reader, not by how much the writer knows.
 
 ## The depth contract
 
@@ -39,7 +39,7 @@ per section. The visual carries the meaning; the prose anchors it.
 
 When 3 or more files, commands, or sources fed an answer short enough to glance at:
 
-1. Write a page in `.claude/attently/` named by subject, never by date.
+1. Write a page in `.claude/aperture/` named by subject, never by date.
 2. The page holds what the reply dropped: examined, weighed, rejected, unknown.
 3. Update `index.md`: one line per page. If a page is not in the index it does not exist.
 4. Cross-link with `[[page-name]]`. A link to a page that does not exist yet is fine.
@@ -57,5 +57,5 @@ being fixed; over-delivery has already spent the reader's attention and cannot r
 Links, not paragraphs. Never pad to fill a rung.
 
 For edge cases, anti-patterns, and worked examples: load the skill that owns the tier
-(`attently:glance-click-ask`, `attently:writing-the-glance`, `attently:scan-first-rendering`,
-`attently:visual-pitch`, `attently:linking-the-working`, `attently:depth-ladder`).
+(`aperture:glance-click-ask`, `aperture:writing-the-glance`, `aperture:scan-first-rendering`,
+`aperture:visual-pitch`, `aperture:linking-the-working`, `aperture:depth-ladder`).

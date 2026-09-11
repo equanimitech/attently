@@ -1,5 +1,5 @@
 {
-  "name": "attently",
+  "name": "aperture",
   "version": "0.2.0",
   "description": "Gross-to-subtle communication for AI assistants. The depth contract and rendering rules from Vipassana meditation applied to how AI responds: verdict first, structure over prose, depth on demand. Stores nothing, blocks nothing, watches nothing.",
   "author": {
@@ -7,7 +7,7 @@
     "url": "https://equanimi.tech"
   },
   "homepage": "https://equanimi.tech",
-  "repository": "https://github.com/equanimitech/attently",
+  "repository": "https://github.com/equanimitech/aperture",
   "license": "MIT",
   "keywords": [
     "granularity",

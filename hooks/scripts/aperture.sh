@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# attently -- gross-to-subtle communication for AI assistants.
+# aperture -- gross-to-subtle communication for AI assistants.
 #
 # Emits a depth contract on the turn boundary. That is the whole program.
 #
@@ -12,14 +12,14 @@
 # additionalContext so it lands as system context. UserPromptSubmit emits a one-line nudge as
 # raw text.
 #
-# Always exits 0. attently never blocks a turn.
+# Always exits 0. aperture never blocks a turn.
 
 set -u
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$DIR/../.." && pwd)"
 
-# Hooks are handed JSON on stdin. attently reads none of it, but drains it so the writer
+# Hooks are handed JSON on stdin. aperture reads none of it, but drains it so the writer
 # never sees EPIPE.
 cat >/dev/null 2>&1 || true
 

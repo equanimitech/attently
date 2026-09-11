@@ -1,6 +1,6 @@
-# attently behavioral test
+# aperture behavioral test
 
-Paste each prompt into a fresh session with attently installed. Check the response against the expected behavior.
+Paste each prompt into a fresh session with aperture installed. Check the response against the expected behavior.
 
 ## Test 1: Verdict first
 
@@ -32,7 +32,7 @@ Paste each prompt into a fresh session with attently installed. Check the respon
 
 **Prompt:** "I have a Next.js app with Prisma and Tailwind. The build is failing with a PostCSS error after upgrading to Tailwind v4. Here's the error: `Error: Cannot find module 'tailwindcss/plugin'`. Fix it."
 
-**Expected:** Short answer in the reply (the fix). A wiki page written to `.claude/attently/` with the investigation details (what was read, what was tried, what was ruled out), linked by absolute path.
+**Expected:** Short answer in the reply (the fix). A wiki page written to `.claude/aperture/` with the investigation details (what was read, what was tried, what was ruled out), linked by absolute path.
 
 **Fail signals:**
 - No wiki page despite reading 3+ files

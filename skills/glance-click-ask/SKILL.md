@@ -56,7 +56,7 @@ in one clause and let the reader spend the turn if they want it.
 
 ## Renderers
 
-attently owns the posture; these own the prose, and all ship with it:
+aperture owns the posture; these own the prose, and all ship with it:
 
 - `writing-the-glance` — the verdict tier: lead with the claim, cut what earns nothing.
 - `scan-first-rendering` — tables, small diagrams, and structure when content is faster seen

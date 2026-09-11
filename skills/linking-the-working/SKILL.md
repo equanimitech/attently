@@ -23,7 +23,7 @@ Dated one-off files litter and never get reread. Pages named by **subject** accu
 something worth opening twice.
 
 ```
-~/.claude/attently/
+~/.claude/aperture/
 ├── index.md                    entry point — every page, one line each
 ├── granularity-signals.md
 ├── hook-delivery.md
@@ -62,7 +62,7 @@ Not a longer version of the answer. The parts that did not fit:
 
 ## Mechanics
 
-- Write under `~/.claude/attently/` (global). The wiki is user-level, not project-level.
+- Write under `~/.claude/aperture/` (global). The wiki is user-level, not project-level.
 - Link by **absolute** path in the reply — many terminals make absolute markdown paths
   clickable, relative ones do not resolve.
 - One line of framing, then the link. Do not summarize the page; that defeats the split.
@@ -71,7 +71,7 @@ Not a longer version of the answer. The parts that did not fit:
 
 > Concurrency sensing is unnecessary — gross-first already prices in the worst case.
 >
-> Working: `~/.claude/attently/granularity-signals.md`
+> Working: `~/.claude/aperture/granularity-signals.md`
 
 The verdict stands alone. The link is an affordance, not a citation the reader must follow to
 understand the answer.

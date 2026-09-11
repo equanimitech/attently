@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 #
-# attently hook integration tests.
+# aperture hook integration tests.
 # Run from the repo root: bash tests/hook-test.sh
 
 set -u
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SCRIPT="$ROOT/hooks/scripts/attently.sh"
+SCRIPT="$ROOT/hooks/scripts/aperture.sh"
 PASS=0
 FAIL=0
 
@@ -18,7 +18,7 @@ check() {
   if eval "$@" >/dev/null 2>&1; then pass "$label"; else fail "$label"; fi
 }
 
-echo "attently hook tests"
+echo "aperture hook tests"
 echo "==================="
 echo ""
 
@@ -37,7 +37,7 @@ check "contains depth contract" '[[ "$ctx" == *"Glance"* ]]'
 check "contains rendering rules" '[[ "$ctx" == *"form from content shape"* ]]'
 check "contains wiki trigger" '[[ "$ctx" == *"3 or more files"* ]]'
 check "contains visual pitch" '[[ "$ctx" == *"hook diagram"* ]]'
-check "opens with attently tag" '[[ "$ctx" == *"[attently]"* ]]'
+check "opens with aperture tag" '[[ "$ctx" == *"[aperture]"* ]]'
 
 echo ""
 
