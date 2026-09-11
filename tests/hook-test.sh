@@ -33,10 +33,9 @@ check "produces valid JSON" \
 ctx=$(printf '%s' "$output" | python3 -c "import json,sys; print(json.load(sys.stdin)['hookSpecificOutput']['additionalContext'])" 2>/dev/null || echo "")
 
 check "uses hookSpecificOutput.additionalContext" '[ -n "$ctx" ]'
-check "contains depth contract" '[[ "$ctx" == *"Glance"* ]]'
-check "contains rendering rules" '[[ "$ctx" == *"form from content shape"* ]]'
-check "contains wiki trigger" '[[ "$ctx" == *"3 or more files"* ]]'
-check "contains visual pitch" '[[ "$ctx" == *"hook diagram"* ]]'
+check "contains depth tiers" '[[ "$ctx" == *"Glance"* ]]'
+check "contains wiki pointer" '[[ "$ctx" == *".claude/aperture/"* ]]'
+check "routes to skill" '[[ "$ctx" == *"aperture:glance-click-ask"* ]]'
 check "opens with aperture tag" '[[ "$ctx" == *"[aperture]"* ]]'
 
 echo ""
@@ -67,20 +66,6 @@ check "uses additionalContext (camelCase)" '[ -n "$ctx_copilot" ]'
 
 echo ""
 
-# --- user-submit (turn hook) ---
-
-echo "Turn hook (UserPromptSubmit):"
-turn_output=$(CLAUDE_PLUGIN_ROOT="$ROOT" bash "$SCRIPT" hook user-submit < /dev/null 2>/dev/null)
-
-check "not empty" '[ -n "$turn_output" ]'
-check "contains verdict-first nudge" '[[ "$turn_output" == *"verdict first"* ]]'
-check "contains wiki trigger nudge" '[[ "$turn_output" == *"3+ sources"* ]]'
-
-line_count=$(echo "$turn_output" | wc -l | tr -d ' ')
-check "is one or two lines" '[ "$line_count" -le 2 ]'
-
-echo ""
-
 # --- unknown event (should be silent) ---
 
 echo "Unknown event:"
@@ -93,12 +78,9 @@ echo ""
 
 echo "Contract files:"
 check "session-start.md exists" '[ -f "$ROOT/contract/session-start.md" ]'
-check "turn.md exists" '[ -f "$ROOT/contract/turn.md" ]'
 
 ss_size=$(wc -c < "$ROOT/contract/session-start.md")
-turn_size=$(wc -c < "$ROOT/contract/turn.md")
-check "session-start.md > 2KB (is ${ss_size}B)" '[ "$ss_size" -gt 2000 ]'
-check "turn.md < 200B (is ${turn_size}B)" '[ "$turn_size" -lt 200 ]'
+check "session-start.md < 1KB (is ${ss_size}B)" '[ "$ss_size" -lt 1000 ]'
 
 echo ""
 
@@ -125,10 +107,9 @@ echo ""
 
 # --- skill descriptions say "deep reference" ---
 
-echo "Skill descriptions (deep reference):"
-for skill in glance-click-ask depth-ladder; do
-  check "$skill says deep reference" 'grep -qi "deep reference" "$ROOT/skills/'"$skill"'/SKILL.md"'
-done
+echo "Skill descriptions:"
+check "glance-click-ask has description" 'grep -qi "depth contract" "$ROOT/skills/glance-click-ask/SKILL.md"'
+check "depth-ladder has description" 'grep -qi "deep reference" "$ROOT/skills/depth-ladder/SKILL.md"'
 
 echo ""
 

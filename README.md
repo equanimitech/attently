@@ -25,22 +25,13 @@ These are **different content**, not one answer at three lengths. A rung ladder 
 same claim longer; this splits it. That is why stopping after the glance misses nothing -- you
 have the conclusion, not an abridgement of it.
 
-## What installs
+## How it works
 
-The session-start hook injects the full depth contract *and* the rendering rules into every
-session. No CLAUDE.md edits needed. No skill loads required for the rules to take effect.
+A thin SessionStart hook injects an 8-line cue establishing the posture. The full contract,
+rendering rules, and wiki mechanics live in the `glance-click-ask` skill, loaded on demand.
 
-Skills exist for deep reference only -- edge cases, anti-patterns, worked examples. The ambient
-injection carries everything a session needs to change behavior.
-
-## Why a hook, not a skill
-
-A skill governs when it is remembered. A turn-boundary hook governs because it arrives.
-
-The posture has to be the default, not the thing you invoke after you have already been handed
-four paragraphs. aperture injects the contract at session start and a one-line reminder on every
-turn. The rendering rules ride along with the contract so the assistant knows *how*, not just
-*what*.
+The hook is deliberately minimal: it names the three tiers and the core defaults so the model
+has the posture before its first response. Everything else is in the skill.
 
 ## The click tier is a wiki
 
@@ -77,18 +68,15 @@ Self-contained. Nothing else to install, and it depends on no other plugin or sk
 
 | Component | Owns |
 |---|---|
-| `contract/session-start.md` | the ambient ruleset: depth contract + rendering rules + wiki trigger |
-| `contract/turn.md` | per-turn reminder (one line) |
+| `contract/session-start.md` | 8-line cue: the three tiers + core defaults |
 
-| Skill (deep reference) | Owns |
+| Skill | Owns |
 |---|---|
-| `glance-click-ask` | the contract and its defaults |
+| `glance-click-ask` | the full contract: rendering rules, wiki mechanics, anti-patterns |
 | `visual-pitch` | scannable page-level output: hook diagrams, emoji nav, visual-per-section |
 | `depth-ladder` | five rungs, for when one claim needs several resolutions |
 
-`hooks/` carries the session-start contract and the per-turn reminder; `contract/` holds their
-text as data -- editable without touching code, and readable by anyone auditing what the plugin
-injects.
+`contract/` holds the cue as data -- auditable and editable without touching code.
 
 ## Parked
 
