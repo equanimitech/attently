@@ -54,13 +54,8 @@ in one clause and let the reader spend the turn if they want it.
 - Treating a follow-up question as evidence the last answer was too short. It usually means it
   worked — the reader descended on purpose.
 
-## Renderers
+## Related skills
 
-aperture owns the posture; these own the prose, and all ship with it:
-
-- `writing-the-glance` — the verdict tier: lead with the claim, cut what earns nothing.
-- `scan-first-rendering` — tables, small diagrams, and structure when content is faster seen
-  than read.
+- `visual-pitch` — scannable page-level output: hook diagrams, emoji nav, visual-per-section.
 - `depth-ladder` — the five-rung ladder, for the cases where one claim genuinely needs several
   resolutions.
-- `linking-the-working` — the click tier: persist the evidence into a project wiki and link it.

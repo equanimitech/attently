@@ -57,5 +57,4 @@ being fixed; over-delivery has already spent the reader's attention and cannot r
 Links, not paragraphs. Never pad to fill a rung.
 
 For edge cases, anti-patterns, and worked examples: load the skill that owns the tier
-(`aperture:glance-click-ask`, `aperture:writing-the-glance`, `aperture:scan-first-rendering`,
-`aperture:visual-pitch`, `aperture:linking-the-working`, `aperture:depth-ladder`).
+(`aperture:glance-click-ask`, `aperture:visual-pitch`, `aperture:depth-ladder`).

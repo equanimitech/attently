@@ -83,10 +83,7 @@ Self-contained. Nothing else to install, and it depends on no other plugin or sk
 | Skill (deep reference) | Owns |
 |---|---|
 | `glance-click-ask` | the contract and its defaults |
-| `writing-the-glance` | verdict tier: lead with the claim, cut what earns nothing |
-| `scan-first-rendering` | tables, small diagrams, structure over paragraphs |
 | `visual-pitch` | scannable page-level output: hook diagrams, emoji nav, visual-per-section |
-| `linking-the-working` | the click tier: the project wiki and how to link it |
 | `depth-ladder` | five rungs, for when one claim needs several resolutions |
 
 `hooks/` carries the session-start contract and the per-turn reminder; `contract/` holds their

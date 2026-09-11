@@ -105,7 +105,7 @@ echo ""
 # --- skills ---
 
 echo "Skills:"
-for skill in glance-click-ask writing-the-glance scan-first-rendering visual-pitch linking-the-working depth-ladder; do
+for skill in glance-click-ask visual-pitch depth-ladder; do
   check "$skill" '[ -f "$ROOT/skills/'"$skill"'/SKILL.md" ]'
 done
 check "visual-pitch example" '[ -f "$ROOT/skills/visual-pitch/examples/signet-pitch-yanik.md" ]'
@@ -126,7 +126,7 @@ echo ""
 # --- skill descriptions say "deep reference" ---
 
 echo "Skill descriptions (deep reference):"
-for skill in glance-click-ask writing-the-glance scan-first-rendering linking-the-working depth-ladder; do
+for skill in glance-click-ask depth-ladder; do
   check "$skill says deep reference" 'grep -qi "deep reference" "$ROOT/skills/'"$skill"'/SKILL.md"'
 done
 
