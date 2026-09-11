@@ -74,7 +74,7 @@ Self-contained. Nothing else to install, and it depends on no other plugin or sk
 |---|---|
 | `glance-click-ask` | the full contract: rendering rules, wiki mechanics, anti-patterns |
 | `visual-pitch` | scannable page-level output: hook diagrams, emoji nav, visual-per-section |
-| `depth-ladder` | five rungs, for when one claim needs several resolutions |
+| `aperture-level` | the five levels (sentence to report) |
 
 `contract/` holds the cue as data -- auditable and editable without touching code.
 

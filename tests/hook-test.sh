@@ -87,7 +87,7 @@ echo ""
 # --- skills ---
 
 echo "Skills:"
-for skill in glance-click-ask visual-pitch depth-ladder; do
+for skill in glance-click-ask visual-pitch aperture-level; do
   check "$skill" '[ -f "$ROOT/skills/'"$skill"'/SKILL.md" ]'
 done
 check "visual-pitch example" '[ -f "$ROOT/skills/visual-pitch/examples/signet-pitch-yanik.md" ]'
@@ -109,7 +109,7 @@ echo ""
 
 echo "Skill descriptions:"
 check "glance-click-ask has description" 'grep -qi "depth contract" "$ROOT/skills/glance-click-ask/SKILL.md"'
-check "depth-ladder has description" 'grep -qi "deep reference" "$ROOT/skills/depth-ladder/SKILL.md"'
+check "aperture-level has description" 'grep -qi "aperture levels" "$ROOT/skills/aperture-level/SKILL.md"'
 
 echo ""
 
