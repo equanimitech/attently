@@ -1,25 +1,18 @@
 #!/usr/bin/env bash
 #
-# attently -- gross-to-subtle communication for AI assistants.
+# aperture -- gross-to-subtle communication for AI assistants.
 #
-# Emits a depth contract on the turn boundary. That is the whole program.
+# Injects an 8-line depth cue on session start. The full contract lives in
+# the glance-click-ask skill; this hook establishes the posture.
 #
-# No state file, no log, no reading of the machine. The contract is a constant, so there is
-# nothing here to observe anyone with. Depth is rationed by what an answer costs to read, and
-# the only thing that raises it is the reader asking.
-#
-# SessionStart injects the full ambient ruleset (contract + rendering rules + wiki trigger) as
-# additionalContext so it lands as system context. UserPromptSubmit emits a one-line nudge as
-# raw text.
-#
-# Always exits 0. attently never blocks a turn.
+# Always exits 0. aperture never blocks a turn.
 
 set -u
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$DIR/../.." && pwd)"
 
-# Hooks are handed JSON on stdin. attently reads none of it, but drains it so the writer
+# Hooks are handed JSON on stdin. aperture reads none of it, but drains it so the writer
 # never sees EPIPE.
 cat >/dev/null 2>&1 || true
 
@@ -49,9 +42,6 @@ case "${2:-}" in
     else
       printf '{\n  "additionalContext": "%s"\n}\n' "$escaped" | cat
     fi
-    ;;
-  user-submit)
-    [ -f "$ROOT/contract/turn.md" ] && cat "$ROOT/contract/turn.md"
     ;;
   *) : ;;
 esac

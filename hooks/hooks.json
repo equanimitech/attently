@@ -7,21 +7,9 @@
           {
             "type": "command",
             "command": "bash",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/scripts/attently.sh", "hook", "session-start"],
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/scripts/aperture.sh", "hook", "session-start"],
             "timeout": 5,
-            "statusMessage": "attently: depth contract"
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/scripts/attently.sh", "hook", "user-submit"],
-            "timeout": 5
+            "statusMessage": "aperture"
           }
         ]
       }
