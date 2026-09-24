@@ -468,15 +468,18 @@ echo ""
 
 echo "Manifest honesty:"
 PJ="$ROOT/.claude-plugin/plugin.json"
-check "version 0.3.0" '[ "$(jq -r .version "$PJ")" = 0.3.0 ]'
+check "version 0.4.0" '[ "$(jq -r .version "$PJ")" = 0.4.0 ]'
 check "manifest no longer claims to store nothing" '! grep -qi "stores nothing" "$PJ"'
-check "manifest names where cards live" 'grep -q "~/.claude/attently/ring/" "$PJ"'
+check "manifest names where the ring stores" 'grep -q "~/.claude/attently/ring/" "$PJ"'
+check "manifest names what it reads" 'grep -q "today.md" "$PJ" && grep -q "phaseConfigs" "$PJ"'
 check "manifest says it blocks nothing" 'grep -q "Blocks nothing" "$PJ"'
-check "README no longer claims no state" '! grep -q "No state" "$ROOT/README.md"'
-check "README states what is stored" 'grep -q "~/.claude/attently/ring/<session>.json" "$ROOT/README.md"'
-check "README states what is read" 'grep -q "last assistant message" "$ROOT/README.md"'
-check "README documents today.md" 'grep -q "today.md" "$ROOT/README.md"'
-check "hooks.json registers Stop" 'jq -e ".hooks.Stop[0].hooks[0].args | index(\"stop\")" "$ROOT/hooks/hooks.json"'
+for read in "today.md" "phaseConfigs.json" "git branch" "cmux tree" "last assistant message"; do
+  check "README states it reads: $read" 'grep -q "$read" "$ROOT/README.md"'
+done
+check "README states what is stored" 'grep -q "ring/sessions/<session>.json" "$ROOT/README.md" && grep -q "rituals.log" "$ROOT/README.md"'
+check "README: selecting the sidebar turns on the custom-sidebar beta" 'grep -q "custom-sidebar beta" "$ROOT/README.md"'
+check "README: nothing is installed into cmux without asking" 'grep -q "install automations" "$ROOT/README.md" && grep -q "install dock" "$ROOT/README.md"'
+check "hooks.json registers Stop, UserPromptSubmit, SessionEnd" 'jq -e ".hooks.Stop and .hooks.UserPromptSubmit and .hooks.SessionEnd" "$ROOT/hooks/hooks.json"'
 
 echo ""
 

@@ -28,7 +28,7 @@ have the conclusion, not an abridgement of it.
 ## What installs
 
 The session-start hook injects the full depth contract *and* the rendering rules into every
-session. Inside cmux, a Stop hook adds the ring (below). No CLAUDE.md edits needed. No skill loads required for the rules to take effect.
+session. Inside cmux, prompt / Stop / SessionEnd hooks add the ring (below). No CLAUDE.md edits needed. No skill loads required for the rules to take effect.
 
 Skills exist for deep reference only -- edge cases, anti-patterns, worked examples. The ambient
 injection carries everything a session needs to change behavior.
@@ -56,73 +56,110 @@ The click tier compounds instead of littering.
 ## The ring: the contract across many sessions
 
 Glance, click, ask works for one reply. With ten sessions open, the question moves up a level:
-*which session deserves me now?* The ring answers it without tab-hunting.
+*which session deserves me now?* Inside [cmux](https://cmux.com), the ring answers it without
+tab-hunting. Calm technology: the day's priority sits at the center, auxiliary work stays in
+the periphery and moves inward only when it matters.
 
-Every reply ends on one marker line: `⏸ waiting on you: <decision>` or `✓ <outcome>`
-(optionally `· blocks: <KEY>`). Inside [cmux](https://cmux.com), the Stop hook reads that line,
-ranks the session against your priorities, and paints its workspace:
+**Areas are workspaces.** Inside an area, each Claude tab carries its layer and state in its
+title, and the workspace description carries the area's rollup:
 
-| Layer | Who | Tab | Notifies |
+| Layer | Who | Tab | Notifications (with the filter below) |
 |---|---|---|---|
-| 🔊 Focus | serves priority 1, or blocks it | blue, full line | every turn, with inline reply |
-| 🔉 Secondary | serves priority 2 | muted | only when `⏸` waiting on you |
-| 🔇 Background | everything else | grey | never |
+| 🔊 Focus | serves priority 1, or blocks it | `🔊⏸ leggia`, first in its pane | cmux's own, untouched |
+| 🔉 Secondary | serves priority 2 | `🔉✓ minerva`, after the focus tabs | only when it waits on you |
+| 🔇 Background | everything else | `🔇… attently`, last | none; still in Feed on demand |
+
+State glyphs: `⏸` waiting on you, `…` working, `✓` done. Area rollup: `🔊 DC · 2 waiting on you`,
+above whatever description you had written, which stays and comes back when the last session
+leaves.
 
 Priorities live in `~/.claude/attently/today.md`, which you write. One per line, ranked by
-order; terms after the key match the session's branch, directory, or marker:
+order; terms after the key match the session's git branch, directory and last message, as
+whole words of 3+ characters:
 
 ```
 1. DC — dommage_corporel, DEV-1706, #467
 2. RB — rupture_brutale, DEV-1712, #506
 ```
 
-A session whose marker says `· blocks: DC` ranks as DC, so a peripheral session that holds up
-the focus comes to the center. No `today.md`, no match: background.
+A session's layer is **sticky**: once a turn places it, later turns can only move it inward,
+until `today.md` changes. A turn that needs you asks through AskUserQuestion (answered inline
+from cmux Feed, Ctrl-4); otherwise its last line can say `⏸ waiting on you: <decision>`. That
+marker is optional: waiting and done come from cmux's own agent events. Only
+`⏸ … · blocks: DC` escalates a peripheral session to DC's layer.
 
-The `ring` custom sidebar shows the hierarchy: focus rows, then secondary, then one collapsed
-`🔇 N parked · M waiting` menu. Tap any row to jump there.
+The `ring` sidebar shows areas, then their Claude tabs: focus expanded, secondary one line,
+background collapsed per area (`🔇 N parked · M waiting`). Tap a tab to focus it.
+
+### Rituals arrive when you do
+
+No clock, no daemon. Your first prompt in a new day-phase (windows read from zenborg's
+`~/.zenborg/phaseConfigs.json`; 7–13 / 13–19 / 19–3 when absent) leaves one invitation, once
+per phase per day: a ritual row on top of the sidebar (`☀️ Sunrise ready`, `🥗 Midday ready`,
+`🌙 Sunset ready`) and one quiet notification. Nothing opens and focus never moves until you
+tap it (or a Dock control, or `attently-ring ritual <name>`):
+
+- **Sunrise** opens a Ritual workspace running `claude "/sunrise"`.
+- **Midday** quiets everything to 🔇 until your next prompt and prints one line of what waits.
+- **Sunset** lists open items per area, then runs `claude "/sunset …"` with them.
+
+Typing `/sunrise` or `/sunset` yourself counts too.
 
 ### Enable the ring
 
-1. Install the sidebar (refuses to overwrite a different `ring.swift`):
-   `attently-ring install-sidebar` from a Claude session (`! attently-ring install-sidebar`),
-   or `bash <plugin dir>/hooks/scripts/attently.sh ring install-sidebar`.
-2. Custom sidebars must be on: Settings → Custom Sidebars (`customSidebars.beta.enabled`).
-3. `cmux sidebar select ring`, or right-click the sidebar button → **ring**.
-4. Silence cmux's own per-turn Claude banners, so the ring alone decides what reaches you.
-   cmux posts a `turn-complete` notification for every Claude session; add to
-   `~/.config/cmux/cmux.json`:
+Nothing touches your cmux config until you run these. Each install refuses to overwrite a
+different file; `--force-with-backup` replaces it after a verified backup. From a Claude session
+prefix with `!` (`! attently-ring install sidebar`).
+
+1. `attently-ring install sidebar` writes `~/.config/cmux/sidebars/ring.swift`.
+2. `attently-ring install automations` writes `~/.cmuxterm/automations.json` (the waiting
+   transitions), then `cmux automation reload && cmux automation list`. If you already have
+   automations, it refuses: merge the four `attently-ring-*` rules from `cmux/automations.json`
+   by hand, with `__ATTENTLY_RING__` replaced by the path of `bin/attently-ring`.
+3. Notification filter: add to `~/.config/cmux/cmux.json`, with the absolute path from
+   `! command -v attently-ring`:
 
    ```json
-   {
-     "notifications": {
-       "hooks": [
-         {
-           "id": "attently-ring",
-           "command": "if [ \"$CMUX_NOTIFICATION_AGENT_KIND\" = claude ] && [ \"$CMUX_NOTIFICATION_AGENT_CATEGORY\" = turn-complete ]; then printf '{\"effects\":{\"desktop\":false,\"sound\":false,\"paneFlash\":false,\"reorderWorkspace\":false}}'; fi"
-         }
-       ]
-     }
-   }
+   { "notifications": { "hooks": [
+       { "id": "attently-ring", "command": "/path/to/attently/bin/attently-ring notify-filter", "timeoutSeconds": 5 }
+   ] } }
    ```
 
-   Permission prompts and plain `cmux notify` calls pass through untouched.
+4. Optional: `attently-ring install dock` writes `~/.config/cmux/dock.json` with ☀️ 🥗 🌙
+   controls (each waits for Enter). Dock config only seeds a Dock that has no saved layout.
+5. `cmux sidebar select ring`, or right-click the sidebar button → **ring**. Selecting a
+   custom sidebar turns on cmux's custom-sidebar beta view (Settings → Custom Sidebars,
+   `customSidebars.beta.enabled`); switch back the same way.
+
+**Watched QA run.** Before selecting it, open the sidebar as a pane you can close:
+`cmux sidebar validate ring && cmux sidebar open ring`. Then, in a scratch workspace, start
+`claude`, send one prompt that names a `today.md` term, and watch: the tab title gains
+`🔊…` then `🔊✓`, the workspace description shows the rollup, the pane lists the tab under its
+area, and tapping it focuses the tab. Ask it to use AskUserQuestion and the tab turns `⏸`.
+`attently-ring restore` gives every tab and description back; `cmux automation logs` shows
+each firing.
 
 ## What it stores, reads, and blocks
 
-- **Stores** one card per session in `~/.claude/attently/ring/<session>.json`: session id,
-  directory, git branch, the marker line, layer, cmux workspace and surface ids, timestamp.
-  Cards older than two days are deleted. Only inside cmux; elsewhere the Stop hook writes
-  nothing. `~/.claude/attently/today.md` is yours; attently only reads it.
-- **Reads** the last assistant message of each finished turn (from the Stop payload, falling
-  back to the transcript's tail), and only to find its last line. Nothing about you -- not your
-  calendar, your body, your prompts.
-- **Writes to cmux** each session's workspace description and colour, and the notifications in
-  the table above. It never sends input to a session.
-- **Blocks nothing.** It never denies a tool or fails a turn. Every hook exits 0.
-- **Depends on** `bash` and `cat` for the contract; `jq` and cmux for the ring, which is a
-  silent no-op without them. The injected text is data under `contract/`, auditable and
-  editable without touching code.
+- **Stores**, only inside cmux, under `~/.claude/attently/`:
+  `ring/sessions/<session>.json` (per Claude session: id, directory, git branch, marker line,
+  layer, priority key, state, cmux workspace and surface ids, the tab title it replaced and
+  the one it wrote; deleted at SessionEnd, or after two days),
+  `ring/workspaces/<id>.json` (the description you had, to give back), `rituals.log` (one line
+  per invitation or completed ritual), and `quiet` (present during midday quiet).
+- **Reads**: `~/.claude/attently/today.md` (yours; attently never writes it); zenborg's
+  `~/.zenborg/phaseConfigs.json` (read-only, phase windows); the git branch of the session's
+  directory; the cmux tree (tab titles, workspace descriptions); the last assistant message
+  of each finished turn (from the Stop payload, else the transcript's tail); the text of your
+  prompt, only to see whether it is `/sunrise` or `/sunset`; and cmux's agent event (session,
+  surface, event name) when an automation fires. Nothing else about you.
+- **Writes to cmux**: Claude tab titles, tab order within a pane (only when a layer changes),
+  workspace descriptions, one notification per day-phase, and -- only when you tap a ritual --
+  a Ritual workspace. It never sends input to a session and never moves focus by itself.
+- **Blocks nothing.** It never denies a tool or fails a turn. Every hook exits 0; cmux calls
+  run detached and time-boxed.
+- **Depends on** `bash` and `cat` for the contract; `jq`, `perl` and cmux for the ring, which
+  is a silent no-op without them. The injected text is data under `contract/`.
 
 Depth is rationed by what an answer costs to read, and the only thing that raises it is you
 asking.
@@ -141,8 +178,10 @@ Self-contained. Nothing else to install, and it depends on no other plugin or sk
 |---|---|
 | `contract/session-start.md` | the ambient ruleset: depth contract + rendering rules + wiki trigger |
 | `contract/turn.md` | per-turn reminder (one line) |
-| `hooks/scripts/ring.sh` | the ring: marker, classifier, card, cmux painting (Stop hook) |
-| `sidebar/ring.swift` | the cmux custom sidebar; `bin/attently-ring install-sidebar` installs it |
+| `hooks/scripts/ring.sh` | the ring: classifier, session cards, cmux painting, rituals, notification policy |
+| `cmux/ring.swift` | the cmux custom sidebar (`attently-ring install sidebar`) |
+| `cmux/automations.json` | cmux event rules for waiting states (`attently-ring install automations`) |
+| `cmux/dock.json` | ☀️ 🥗 🌙 ritual Dock controls (`attently-ring install dock`) |
 
 | Skill (deep reference) | Owns |
 |---|---|
