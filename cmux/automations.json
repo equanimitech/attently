@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "rules": [
+    {
+      "id": "attently-ring-needs-input",
+      "when": {
+        "event": "agent.needs_input"
+      },
+      "rate_limit": {
+        "interval_seconds": 1,
+        "maximum": 20
+      },
+      "then": [
+        {
+          "action": "run",
+          "command": "PATH=/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin:$PATH '__ATTENTLY_RING__' event",
+          "timeout_seconds": 15
+        }
+      ]
+    },
+    {
+      "id": "attently-ring-ask",
+      "when": {
+        "event": "agent.hook.AskUserQuestion"
+      },
+      "rate_limit": {
+        "interval_seconds": 1,
+        "maximum": 20
+      },
+      "then": [
+        {
+          "action": "run",
+          "command": "PATH=/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin:$PATH '__ATTENTLY_RING__' event",
+          "timeout_seconds": 15
+        }
+      ]
+    },
+    {
+      "id": "attently-ring-permission",
+      "when": {
+        "event": "agent.hook.PermissionRequest"
+      },
+      "rate_limit": {
+        "interval_seconds": 1,
+        "maximum": 20
+      },
+      "then": [
+        {
+          "action": "run",
+          "command": "PATH=/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin:$PATH '__ATTENTLY_RING__' event",
+          "timeout_seconds": 15
+        }
+      ]
+    },
+    {
+      "id": "attently-ring-notification",
+      "when": {
+        "event": "agent.hook.Notification"
+      },
+      "rate_limit": {
+        "interval_seconds": 1,
+        "maximum": 20
+      },
+      "then": [
+        {
+          "action": "run",
+          "command": "PATH=/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin:$PATH '__ATTENTLY_RING__' event",
+          "timeout_seconds": 15
+        }
+      ]
+    }
+  ]
+}

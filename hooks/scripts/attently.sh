@@ -2,49 +2,78 @@
 #
 # attently -- gross-to-subtle communication for AI assistants.
 #
-# Emits a depth contract on the turn boundary, and -- inside cmux -- keeps the ring: one card
-# per session saying whether it waits on you.
-#
-# The contract is a constant; nothing about the reader is observed. The ring reads one thing,
-# the last line of each finished turn, and writes one card per session (see ring.sh).
+# Emits a depth contract on the turn boundary, and -- inside cmux -- keeps the ring: each
+# Claude session ranked against today's priorities, painted into its tab and workspace.
 #
 # SessionStart injects the full ambient ruleset (contract + rendering rules + wiki trigger) as
 # additionalContext so it lands as system context. UserPromptSubmit emits a one-line nudge as
-# raw text. Stop writes the ring card (a silent no-op outside cmux).
+# raw text. Inside cmux, UserPromptSubmit / Stop / SessionEnd also update the session's ring
+# card (see ring.sh); all cmux work runs detached and bounded, so no hook can stall a turn.
 #
 # Always exits 0 as a hook. attently never blocks a turn.
 #
-# `attently.sh ring install-sidebar [--force]` copies the ring sidebar into cmux. It never
-# overwrites a different ring.swift unless --force, and then keeps a .bak copy.
+# `attently.sh ring <command>` (also bin/attently-ring):
+#   install sidebar|automations|dock [--force-with-backup]
+#   event            cmux automation `run` action (reads CMUX_AUTOMATION_EVENT_JSON)
+#   notify-filter    cmux notifications.hooks filter (policy JSON on stdin)
+#   ritual sunrise|midday|sunset [--here|--ask]
+#   restore          give every painted tab and workspace back its own title / description
 
 set -u
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$DIR/../.." && pwd)"
+RING_BIN="$ROOT/bin/attently-ring"
+
+# Copy a rendered template to $2, never over a different file unless --force-with-backup, and
+# then only after the backup is safely written.
+ring_install_file() {
+  local content="$1" dest="$2" force="$3" backup
+  if [ -f "$dest" ] && [ "$(cat "$dest")" = "$content" ]; then
+    echo "already installed: $dest"; return 0
+  fi
+  if [ -f "$dest" ] && [ "$force" != --force-with-backup ]; then
+    echo "a different $dest exists; not overwriting." >&2
+    echo "Merge by hand, or replace it keeping a backup: attently-ring install <what> --force-with-backup" >&2
+    return 1
+  fi
+  mkdir -p "$(dirname "$dest")" || return 1
+  if [ -f "$dest" ]; then
+    backup="$dest.bak.$(date +%Y%m%d%H%M%S)"
+    while [ -e "$backup" ]; do backup="$backup.1"; done
+    cp -p "$dest" "$backup" && cmp -s "$dest" "$backup" || { echo "backup to $backup failed; nothing changed" >&2; return 1; }
+    echo "backed up: $backup"
+  fi
+  printf '%s\n' "$content" >"$dest" && echo "installed: $dest"
+}
+
+# A template with the path of bin/attently-ring filled in.
+ring_render() { sed "s#__ATTENTLY_RING__#$RING_BIN#g" "$ROOT/cmux/$1"; }
 
 if [ "${1:-}" = ring ]; then
-  [ "${2:-}" = install-sidebar ] || { echo "usage: attently.sh ring install-sidebar [--force]" >&2; exit 2; }
-  src="$ROOT/sidebar/ring.swift"
-  dest_dir="${CMUX_SIDEBARS_DIR:-$HOME/.config/cmux/sidebars}"
-  dest="$dest_dir/ring.swift"
-  if [ -f "$dest" ] && cmp -s "$src" "$dest"; then
-    echo "ring sidebar already installed: $dest"
-  elif [ -f "$dest" ] && [ "${3:-}" != --force ]; then
-    echo "a different $dest exists; not overwriting. Compare: diff '$dest' '$src'" >&2
-    echo "Replace it (keeping a .bak copy): attently.sh ring install-sidebar --force" >&2
-    exit 1
-  else
-    mkdir -p "$dest_dir"
-    [ -f "$dest" ] && cp "$dest" "$dest.bak.$(date +%Y%m%d%H%M%S)"
-    cp "$src" "$dest"
-    echo "ring sidebar installed: $dest"
-    echo "Show it: cmux sidebar select ring (or right-click the sidebar button -> ring)"
-  fi
-  exit 0
+  command -v jq >/dev/null 2>&1 || { echo "attently ring needs jq" >&2; exit 1; }
+  . "$DIR/ring.sh"
+  case "${2:-}" in
+    install)
+      case "${3:-}" in
+        sidebar) ring_install_file "$(ring_render ring.swift)" "${CMUX_SIDEBARS_DIR:-$HOME/.config/cmux/sidebars}/ring.swift" "${4:-}" &&
+          echo "Show it: cmux sidebar select ring (turns on cmux's custom-sidebar beta view), or right-click the sidebar button -> ring" ;;
+        automations) ring_install_file "$(ring_render automations.json)" "${ATTENTLY_AUTOMATIONS_PATH:-$HOME/.cmuxterm/automations.json}" "${4:-}" &&
+          echo "Load it: cmux automation reload && cmux automation list" ;;
+        dock) ring_install_file "$(ring_render dock.json)" "${ATTENTLY_DOCK_PATH:-$HOME/.config/cmux/dock.json}" "${4:-}" &&
+          echo "Dock seeds new windows only; reload the Dock config from the Dock menu to apply it now." ;;
+        *) echo "usage: attently-ring install sidebar|automations|dock [--force-with-backup]" >&2; exit 2 ;;
+      esac
+      exit $? ;;
+    event) ring_event "${3:-}"; exit 0 ;;
+    notify-filter) ring_notify_filter; exit 0 ;;
+    ritual) ring_ritual "${3:-}" "${4:-}" "$RING_BIN"; exit $? ;;
+    restore) for s in $(ring_cards | jq -r '.[].session // empty'); do ring_release "$s"; done; exit 0 ;;
+    *) echo "usage: attently-ring install|event|notify-filter|ritual|restore" >&2; exit 2 ;;
+  esac
 fi
 
-# Hooks are handed JSON on stdin. Only Stop uses it; reading it all also drains it so the
-# writer never sees EPIPE.
+# Hooks are handed JSON on stdin; reading it all also drains it so the writer never sees EPIPE.
 INPUT=$(cat 2>/dev/null || true)
 
 # Escape string for JSON embedding using bash parameter substitution.
@@ -56,6 +85,14 @@ escape_for_json() {
     s="${s//$'\r'/\\r}"
     s="${s//$'\t'/\\t}"
     printf '%s' "$s"
+}
+
+# Ring hooks: inside cmux only, never a word on stdout, never a failure.
+ring_hook() {
+  [ -n "${CMUX_WORKSPACE_ID:-}" ] || return 0
+  command -v jq >/dev/null 2>&1 || return 0
+  . "$DIR/ring.sh"
+  "$1" "$INPUT" >/dev/null 2>&1 || true
 }
 
 case "${2:-}" in
@@ -76,13 +113,10 @@ case "${2:-}" in
     ;;
   user-submit)
     [ -f "$ROOT/contract/turn.md" ] && cat "$ROOT/contract/turn.md"
+    ring_hook ring_prompt
     ;;
-  stop)
-    [ -n "${CMUX_WORKSPACE_ID:-}" ] || exit 0
-    command -v jq >/dev/null 2>&1 || exit 0
-    . "$DIR/ring.sh"
-    ring_stop "$INPUT" >/dev/null 2>&1 || true
-    ;;
+  stop) ring_hook ring_stop ;;
+  session-end) ring_hook ring_end ;;
   *) : ;;
 esac
 

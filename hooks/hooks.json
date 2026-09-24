@@ -7,7 +7,11 @@
           {
             "type": "command",
             "command": "bash",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/scripts/attently.sh", "hook", "session-start"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/attently.sh",
+              "hook",
+              "session-start"
+            ],
             "timeout": 5,
             "statusMessage": "attently: depth contract"
           }
@@ -20,7 +24,11 @@
           {
             "type": "command",
             "command": "bash",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/scripts/attently.sh", "hook", "user-submit"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/attently.sh",
+              "hook",
+              "user-submit"
+            ],
             "timeout": 5
           }
         ]
@@ -32,8 +40,28 @@
           {
             "type": "command",
             "command": "bash",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/scripts/attently.sh", "hook", "stop"],
-            "timeout": 10
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/attently.sh",
+              "hook",
+              "stop"
+            ],
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/attently.sh",
+              "hook",
+              "session-end"
+            ],
+            "timeout": 5
           }
         ]
       }

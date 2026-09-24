@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
-# attently-ring install-sidebar [--force] -- see hooks/scripts/attently.sh
+# attently-ring install|event|notify-filter|ritual|restore -- see hooks/scripts/attently.sh
 exec bash "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/hooks/scripts/attently.sh" ring "$@"
