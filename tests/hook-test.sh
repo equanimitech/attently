@@ -89,6 +89,67 @@ check "produces no output" '[ -z "$unknown_output" ]'
 
 echo ""
 
+# --- ring: turn convention ---
+
+echo "Ring convention:"
+check "session-start teaches the waiting marker" '[[ "$ctx" == *"⏸ waiting on you:"* ]]'
+check "session-start teaches the done marker" '[[ "$ctx" == *"✓ <one-line outcome>"* ]]'
+check "turn nudge names the last-line marker" '[[ "$turn_output" == *"⏸"* ]]'
+
+echo ""
+
+# --- ring: marker parsing (pure) ---
+
+echo "Ring marker parsing:"
+. "$ROOT/hooks/scripts/ring.sh"
+nl=$'\n'
+check "waiting marker is the last line" '[ "$(ring_marker "Did X.${nl}${nl}⏸ waiting on you: merge A or B?  ")" = "⏸ waiting on you: merge A or B?" ]'
+check "done marker" '[ "$(ring_marker "✓ tests green")" = "✓ tests green" ]'
+check "marker not on last line is ignored" '[ -z "$(ring_marker "✓ done${nl}more text")" ]'
+check "no marker, empty" '[ -z "$(ring_marker "plain reply")" ]'
+check "state waiting" '[ "$(ring_state "⏸ waiting on you: x")" = waiting ]'
+check "state done" '[ "$(ring_state "✓ x")" = done ]'
+check "state none" '[ "$(ring_state "")" = none ]'
+check "blocks key" '[ "$(ring_blocks "⏸ waiting on you: rerun? · blocks: DC")" = DC ]'
+check "no blocks key" '[ -z "$(ring_blocks "⏸ waiting on you: rerun?")" ]'
+
+echo ""
+
+# --- ring: Stop hook writes a card ---
+
+echo "Ring Stop hook:"
+RING_HOME=$(mktemp -d)
+trap 'rm -rf "$RING_HOME"' EXIT
+stop_payload() {
+  python3 -c 'import json,sys; print(json.dumps({"session_id": sys.argv[1], "cwd": sys.argv[2], "transcript_path": "/nonexistent", "last_assistant_message": sys.argv[3]}))' "$@"
+}
+run_stop() {
+  ATTENTLY_HOME="$RING_HOME" CLAUDE_PLUGIN_ROOT="$ROOT" "$@" bash "$SCRIPT" hook stop
+}
+
+stop_out=$(stop_payload s1 "$ROOT" "Looked.${nl}⏸ waiting on you: ship it? · blocks: DC" \
+  | run_stop env CMUX_WORKSPACE_ID=ws-1 CMUX_SURFACE_ID=sf-1 2>&1)
+card="$RING_HOME/ring/s1.json"
+check "prints nothing" '[ -z "$stop_out" ]'
+check "writes card for the session" '[ -f "$card" ]'
+check "card is valid JSON" 'jq -e . "$card"'
+check "card carries marker" '[ "$(jq -r .marker "$card")" = "⏸ waiting on you: ship it? · blocks: DC" ]'
+check "card carries state" '[ "$(jq -r .state "$card")" = waiting ]'
+check "card carries blocks" '[ "$(jq -r .blocks "$card")" = DC ]'
+check "card carries workspace" '[ "$(jq -r .workspace "$card")" = ws-1 ]'
+check "card carries branch" '[ -n "$(jq -r .branch "$card")" ]'
+check "card carries cwd + ts" 'jq -e ".cwd == \"$ROOT\" and (.ts | type) == \"number\"" "$card"'
+
+stop_payload s2 "$ROOT" "✓ done" | run_stop env -u CMUX_WORKSPACE_ID >/dev/null 2>&1
+check "outside cmux: no card" '[ ! -f "$RING_HOME/ring/s2.json" ]'
+
+stop_payload "../evil" "$ROOT" "✓ done" | run_stop env CMUX_WORKSPACE_ID=ws-1 >/dev/null 2>&1
+check "session id cannot escape the ring dir" '[ -f "$RING_HOME/ring/evil.json" ] && [ ! -f "$RING_HOME/evil.json" ]'
+
+check "malformed payload exits 0" 'printf "not json" | run_stop env CMUX_WORKSPACE_ID=ws-1'
+
+echo ""
+
 # --- contract files ---
 
 echo "Contract files:"

@@ -50,6 +50,16 @@ When 3 or more files, commands, or sources fed an answer short enough to glance 
 
 Name the unexplored branch in one clause. Do not pre-emptively explore it.
 
+## Ending a turn
+
+The last line of every reply is one marker, alone on its line:
+
+- `⏸ waiting on you: <the decision, in one clause>` when the turn cannot continue without the reader.
+  Add ` · blocks: <KEY>` when that decision holds up a priority named in `~/.claude/attently/today.md`.
+- `✓ <one-line outcome>` when the turn is done.
+
+One line, last line, nothing after it. It is the glance for a reader running many sessions at once.
+
 ## Defaults
 
 Open at the verdict. Always. When in doubt, shorter: under-delivery is one click from

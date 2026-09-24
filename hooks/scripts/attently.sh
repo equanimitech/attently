@@ -2,15 +2,15 @@
 #
 # attently -- gross-to-subtle communication for AI assistants.
 #
-# Emits a depth contract on the turn boundary. That is the whole program.
+# Emits a depth contract on the turn boundary, and -- inside cmux -- keeps the ring: one card
+# per session saying whether it waits on you.
 #
-# No state file, no log, no reading of the machine. The contract is a constant, so there is
-# nothing here to observe anyone with. Depth is rationed by what an answer costs to read, and
-# the only thing that raises it is the reader asking.
+# The contract is a constant; nothing about the reader is observed. The ring reads one thing,
+# the last line of each finished turn, and writes one card per session (see ring.sh).
 #
 # SessionStart injects the full ambient ruleset (contract + rendering rules + wiki trigger) as
 # additionalContext so it lands as system context. UserPromptSubmit emits a one-line nudge as
-# raw text.
+# raw text. Stop writes the ring card (a silent no-op outside cmux).
 #
 # Always exits 0. attently never blocks a turn.
 
@@ -19,9 +19,9 @@ set -u
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$DIR/../.." && pwd)"
 
-# Hooks are handed JSON on stdin. attently reads none of it, but drains it so the writer
-# never sees EPIPE.
-cat >/dev/null 2>&1 || true
+# Hooks are handed JSON on stdin. Only Stop uses it; reading it all also drains it so the
+# writer never sees EPIPE.
+INPUT=$(cat 2>/dev/null || true)
 
 # Escape string for JSON embedding using bash parameter substitution.
 escape_for_json() {
@@ -52,6 +52,12 @@ case "${2:-}" in
     ;;
   user-submit)
     [ -f "$ROOT/contract/turn.md" ] && cat "$ROOT/contract/turn.md"
+    ;;
+  stop)
+    [ -n "${CMUX_WORKSPACE_ID:-}" ] || exit 0
+    command -v jq >/dev/null 2>&1 || exit 0
+    . "$DIR/ring.sh"
+    ring_stop "$INPUT" >/dev/null 2>&1 || true
     ;;
   *) : ;;
 esac
