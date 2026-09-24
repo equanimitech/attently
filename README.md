@@ -28,7 +28,7 @@ have the conclusion, not an abridgement of it.
 ## What installs
 
 The session-start hook injects the full depth contract *and* the rendering rules into every
-session. No CLAUDE.md edits needed. No skill loads required for the rules to take effect.
+session. Inside cmux, a Stop hook adds the ring (below). No CLAUDE.md edits needed. No skill loads required for the rules to take effect.
 
 Skills exist for deep reference only -- edge cases, anti-patterns, worked examples. The ambient
 injection carries everything a session needs to change behavior.
@@ -53,14 +53,76 @@ is checkable before replying rather than resolved by taste.
 
 The click tier compounds instead of littering.
 
-## What it does not do
+## The ring: the contract across many sessions
 
-- **No state.** No dial, no ceiling, no per-day setting to spring back.
-- **No observation.** It reads nothing about you -- not your calendar, your body, your session
-  count. The contract is a constant, so there is nothing to watch you with.
-- **No blocking.** It never denies a tool or fails a turn. Always exits 0.
-- **No runtime dependency.** The hook is `bash` and `cat`; the injected text is data under
-  `contract/`, auditable and editable without touching code.
+Glance, click, ask works for one reply. With ten sessions open, the question moves up a level:
+*which session deserves me now?* The ring answers it without tab-hunting.
+
+Every reply ends on one marker line: `⏸ waiting on you: <decision>` or `✓ <outcome>`
+(optionally `· blocks: <KEY>`). Inside [cmux](https://cmux.com), the Stop hook reads that line,
+ranks the session against your priorities, and paints its workspace:
+
+| Layer | Who | Tab | Notifies |
+|---|---|---|---|
+| 🔊 Focus | serves priority 1, or blocks it | blue, full line | every turn, with inline reply |
+| 🔉 Secondary | serves priority 2 | muted | only when `⏸` waiting on you |
+| 🔇 Background | everything else | grey | never |
+
+Priorities live in `~/.claude/attently/today.md`, which you write. One per line, ranked by
+order; terms after the key match the session's branch, directory, or marker:
+
+```
+1. DC — dommage_corporel, DEV-1706, #467
+2. RB — rupture_brutale, DEV-1712, #506
+```
+
+A session whose marker says `· blocks: DC` ranks as DC, so a peripheral session that holds up
+the focus comes to the center. No `today.md`, no match: background.
+
+The `ring` custom sidebar shows the hierarchy: focus rows, then secondary, then one collapsed
+`🔇 N parked · M waiting` menu. Tap any row to jump there.
+
+### Enable the ring
+
+1. Install the sidebar (refuses to overwrite a different `ring.swift`):
+   `attently-ring install-sidebar` from a Claude session (`! attently-ring install-sidebar`),
+   or `bash <plugin dir>/hooks/scripts/attently.sh ring install-sidebar`.
+2. Custom sidebars must be on: Settings → Custom Sidebars (`customSidebars.beta.enabled`).
+3. `cmux sidebar select ring`, or right-click the sidebar button → **ring**.
+4. Silence cmux's own per-turn Claude banners, so the ring alone decides what reaches you.
+   cmux posts a `turn-complete` notification for every Claude session; add to
+   `~/.config/cmux/cmux.json`:
+
+   ```json
+   {
+     "notifications": {
+       "hooks": [
+         {
+           "id": "attently-ring",
+           "command": "if [ \"$CMUX_NOTIFICATION_AGENT_KIND\" = claude ] && [ \"$CMUX_NOTIFICATION_AGENT_CATEGORY\" = turn-complete ]; then printf '{\"effects\":{\"desktop\":false,\"sound\":false,\"paneFlash\":false,\"reorderWorkspace\":false}}'; fi"
+         }
+       ]
+     }
+   }
+   ```
+
+   Permission prompts and plain `cmux notify` calls pass through untouched.
+
+## What it stores, reads, and blocks
+
+- **Stores** one card per session in `~/.claude/attently/ring/<session>.json`: session id,
+  directory, git branch, the marker line, layer, cmux workspace and surface ids, timestamp.
+  Cards older than two days are deleted. Only inside cmux; elsewhere the Stop hook writes
+  nothing. `~/.claude/attently/today.md` is yours; attently only reads it.
+- **Reads** the last assistant message of each finished turn (from the Stop payload, falling
+  back to the transcript's tail), and only to find its last line. Nothing about you -- not your
+  calendar, your body, your prompts.
+- **Writes to cmux** each session's workspace description and colour, and the notifications in
+  the table above. It never sends input to a session.
+- **Blocks nothing.** It never denies a tool or fails a turn. Every hook exits 0.
+- **Depends on** `bash` and `cat` for the contract; `jq` and cmux for the ring, which is a
+  silent no-op without them. The injected text is data under `contract/`, auditable and
+  editable without touching code.
 
 Depth is rationed by what an answer costs to read, and the only thing that raises it is you
 asking.
@@ -79,6 +141,8 @@ Self-contained. Nothing else to install, and it depends on no other plugin or sk
 |---|---|
 | `contract/session-start.md` | the ambient ruleset: depth contract + rendering rules + wiki trigger |
 | `contract/turn.md` | per-turn reminder (one line) |
+| `hooks/scripts/ring.sh` | the ring: marker, classifier, card, cmux painting (Stop hook) |
+| `sidebar/ring.swift` | the cmux custom sidebar; `bin/attently-ring install-sidebar` installs it |
 
 | Skill (deep reference) | Owns |
 |---|---|
@@ -89,7 +153,7 @@ Self-contained. Nothing else to install, and it depends on no other plugin or sk
 | `linking-the-working` | the click tier: the project wiki and how to link it |
 | `depth-ladder` | five rungs, for when one claim needs several resolutions |
 
-`hooks/` carries the session-start contract and the per-turn reminder; `contract/` holds their
+`hooks/` carries the session-start contract, the per-turn reminder, and the ring; `contract/` holds their
 text as data -- editable without touching code, and readable by anyone auditing what the plugin
 injects.
 

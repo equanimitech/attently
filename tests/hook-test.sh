@@ -298,6 +298,22 @@ check "README links PHILOSOPHY.md" 'grep -q PHILOSOPHY.md "$ROOT/README.md"'
 
 echo ""
 
+# --- manifest honesty ---
+
+echo "Manifest honesty:"
+PJ="$ROOT/.claude-plugin/plugin.json"
+check "version 0.3.0" '[ "$(jq -r .version "$PJ")" = 0.3.0 ]'
+check "manifest no longer claims to store nothing" '! grep -qi "stores nothing" "$PJ"'
+check "manifest names where cards live" 'grep -q "~/.claude/attently/ring/" "$PJ"'
+check "manifest says it blocks nothing" 'grep -q "Blocks nothing" "$PJ"'
+check "README no longer claims no state" '! grep -q "No state" "$ROOT/README.md"'
+check "README states what is stored" 'grep -q "~/.claude/attently/ring/<session>.json" "$ROOT/README.md"'
+check "README states what is read" 'grep -q "last assistant message" "$ROOT/README.md"'
+check "README documents today.md" 'grep -q "today.md" "$ROOT/README.md"'
+check "hooks.json registers Stop" 'jq -e ".hooks.Stop[0].hooks[0].args | index(\"stop\")" "$ROOT/hooks/hooks.json"'
+
+echo ""
+
 # --- skill descriptions say "deep reference" ---
 
 echo "Skill descriptions (deep reference):"
