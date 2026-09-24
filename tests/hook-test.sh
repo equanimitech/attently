@@ -393,6 +393,43 @@ check "no reader description: cleared" '[[ "$calls" == *"clear-description|--wor
 
 echo ""
 
+# --- ring: sidebar + cmux config templates + install ---
+
+echo "Ring sidebar + templates:"
+SB="$ROOT/cmux/ring.swift"
+check "ring.swift exists" '[ -f "$SB" ]'
+check "tree joins agents to tabs by surfaceId" 'grep -q "\$0.surfaceId == a.surfaceId" "$SB"'
+check "layer from the tab title glyph" 'grep -q "hasPrefix(\"🔊\")" "$SB" && grep -q "hasPrefix(\"🔉\")" "$SB"'
+check "state from cmux agent status" 'grep -q "needs_input" "$SB"'
+check "tap focuses the tab" 'grep -q "cmux(\"surface.focus\", surface_id: a.surfaceId)" "$SB"'
+check "background collapses per area" 'grep -q "parked · " "$SB"'
+check "ritual row opens the ritual on tap" 'grep -q "cmux(\"workspace.create\", title: \"Ritual\"" "$SB"'
+check "reads only live cmux context" '! grep -qE "readFile|Process\(|FileManager|\.claude/attently" "$SB"'
+check "automations template is valid JSON" 'jq -e ".version == 1 and (.rules | length) > 0" "$ROOT/cmux/automations.json"'
+check "automations run attently-ring event" 'jq -e "[.rules[].then[].command | test(\"__ATTENTLY_RING__. event\")] | all" "$ROOT/cmux/automations.json"'
+check "automations cover needs_input and AskUserQuestion" 'jq -e "[.rules[].when.event] | index(\"agent.needs_input\") and index(\"agent.hook.AskUserQuestion\")" "$ROOT/cmux/automations.json"'
+check "every automation is rate limited and time boxed" 'jq -e "[.rules[] | .rate_limit and (.then[0].timeout_seconds <= 30)] | all" "$ROOT/cmux/automations.json"'
+check "dock template: ☀️ 🥗 🌙" 'jq -e "[.controls[].command] == [\"'"'"'__ATTENTLY_RING__'"'"' ritual sunrise --ask\", \"'"'"'__ATTENTLY_RING__'"'"' ritual midday --ask\", \"'"'"'__ATTENTLY_RING__'"'"' ritual sunset --ask\"]" "$ROOT/cmux/dock.json"'
+
+INST=$(mktemp -d)
+inst() { env CMUX_SIDEBARS_DIR="$INST/sidebars" ATTENTLY_AUTOMATIONS_PATH="$INST/automations.json" ATTENTLY_DOCK_PATH="$INST/dock.json" bash "$ROOT/bin/attently-ring" install "$@"; }
+check "installs the sidebar with the plugin path filled in" 'inst sidebar && grep -q "$ROOT/bin/attently-ring" "$INST/sidebars/ring.swift" && ! grep -q __ATTENTLY_RING__ "$INST/sidebars/ring.swift"'
+check "idempotent when identical" 'inst sidebar | grep -q "already installed"'
+echo "// mine" > "$INST/sidebars/ring.swift"
+check "refuses to overwrite a different file" '! inst sidebar 2>/dev/null && [ "$(cat "$INST/sidebars/ring.swift")" = "// mine" ]'
+check "--force-with-backup replaces it, keeping a backup" 'inst sidebar --force-with-backup >/dev/null && grep -q "attently ring" "$INST/sidebars/ring.swift" && grep -q "// mine" "$INST"/sidebars/ring.swift.bak.*'
+echo "// mine again" > "$INST/sidebars/ring.swift"
+chmod 555 "$INST/sidebars"
+check "a failed backup aborts the install" '! inst sidebar --force-with-backup 2>/dev/null && [ "$(cat "$INST/sidebars/ring.swift")" = "// mine again" ]'
+chmod 755 "$INST/sidebars"
+check "installs automations (valid JSON, path filled in)" 'inst automations >/dev/null && jq -e . "$INST/automations.json" >/dev/null && grep -q "$ROOT/bin/attently-ring" "$INST/automations.json"'
+check "installs the dock config" 'inst dock >/dev/null && jq -e ".controls | length == 3" "$INST/dock.json"'
+check "unknown install target exits non-zero" '! inst nope 2>/dev/null'
+check "unknown ring subcommand exits non-zero" '! bash "$SCRIPT" ring nope 2>/dev/null'
+rm -rf "$INST"
+
+echo ""
+
 # --- contract files ---
 
 echo "Contract files:"

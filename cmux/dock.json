@@ -1,0 +1,22 @@
+{
+  "controls": [
+    {
+      "id": "attently-sunrise",
+      "title": "☀️ Sunrise",
+      "command": "'__ATTENTLY_RING__' ritual sunrise --ask",
+      "height": 60
+    },
+    {
+      "id": "attently-midday",
+      "title": "🥗 Midday",
+      "command": "'__ATTENTLY_RING__' ritual midday --ask",
+      "height": 60
+    },
+    {
+      "id": "attently-sunset",
+      "title": "🌙 Sunset",
+      "command": "'__ATTENTLY_RING__' ritual sunset --ask",
+      "height": 60
+    }
+  ]
+}
