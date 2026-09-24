@@ -52,13 +52,17 @@ Name the unexplored branch in one clause. Do not pre-emptively explore it.
 
 ## Ending a turn
 
-The last line of every reply is one marker, alone on its line:
+When the turn cannot continue without a decision from the reader, ask it with the
+AskUserQuestion tool when it is available: the reader answers it inline (in cmux, from the
+Feed) instead of hunting for the tab. Otherwise end the reply with one marker line, alone and
+last:
 
 - `⏸ waiting on you: <the decision, in one clause>` when the turn cannot continue without the reader.
   Add ` · blocks: <KEY>` when that decision holds up a priority named in `~/.claude/attently/today.md`.
 - `✓ <one-line outcome>` when the turn is done.
 
-One line, last line, nothing after it. It is the glance for a reader running many sessions at once.
+The marker is optional enrichment for a reader running many sessions at once; the session's
+state is known without it. One line, last line, nothing after it.
 
 ## Defaults
 

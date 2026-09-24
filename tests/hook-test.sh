@@ -89,6 +89,17 @@ check "produces no output" '[ -z "$unknown_output" ]'
 
 echo ""
 
+# --- ring: turn convention ---
+
+echo "Ring convention:"
+check "session-start: a decision goes through AskUserQuestion" '[[ "$ctx" == *"AskUserQuestion"* ]]'
+check "session-start: the marker is the fallback" '[[ "$ctx" == *"⏸ waiting on you:"* ]]'
+check "session-start: the marker is optional" '[[ "$ctx" == *"optional"* ]]'
+check "turn nudge names AskUserQuestion" '[[ "$turn_output" == *"AskUserQuestion"* ]]'
+check "turn nudge names the marker" '[[ "$turn_output" == *"⏸"* ]]'
+
+echo ""
+
 # --- ring: markers (pure) ---
 
 echo "Ring markers:"
