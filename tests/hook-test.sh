@@ -123,8 +123,14 @@ trap 'rm -rf "$RING_HOME"' EXIT
 stop_payload() {
   python3 -c 'import json,sys; print(json.dumps({"session_id": sys.argv[1], "cwd": sys.argv[2], "transcript_path": "/nonexistent", "last_assistant_message": sys.argv[3]}))' "$@"
 }
+# A fake cmux: records each call, one line per call, arguments joined by '|'.
+CMUX_LOG="$RING_HOME/cmux.log"
+# `tree` answers from $RING_HOME/tree.json when present, as the real cmux answers from its model.
+printf '#!/usr/bin/env bash\n(IFS="|"; printf "%%s\\n" "$*") >> "%s"\n[ "$1" = tree ] && cat "%s" 2>/dev/null\nexit 0\n' \
+  "$CMUX_LOG" "$RING_HOME/tree.json" > "$RING_HOME/cmux"
+chmod +x "$RING_HOME/cmux"
 run_stop() {
-  ATTENTLY_HOME="$RING_HOME" CLAUDE_PLUGIN_ROOT="$ROOT" "$@" bash "$SCRIPT" hook stop
+  ATTENTLY_HOME="$RING_HOME" ATTENTLY_CMUX="$RING_HOME/cmux" CLAUDE_PLUGIN_ROOT="$ROOT" "$@" bash "$SCRIPT" hook stop
 }
 
 stop_out=$(stop_payload s1 "$ROOT" "Looked.${nl}⏸ waiting on you: ship it? · blocks: DC" \
@@ -184,6 +190,55 @@ stop_payload s3 /tmp/nowhere "⏸ waiting on you: rerun the stuck flows? · bloc
 check "blocking card escalates to focus" '[ "$(jq -r .layer "$RING_HOME/ring/s3.json")" = focus ]'
 stop_payload s4 /tmp/nowhere "✓ refactored the parser" | run_stop env CMUX_WORKSPACE_ID=ws-4 >/dev/null 2>&1
 check "unmatched card is background" '[ "$(jq -r .layer "$RING_HOME/ring/s4.json")" = background ]'
+
+echo ""
+
+# --- ring: cmux painting + notification gating ---
+
+echo "Ring painting (pure):"
+check "focus glyph" '[ "$(ring_glyph focus)" = "🔊" ]'
+check "secondary glyph" '[ "$(ring_glyph secondary)" = "🔉" ]'
+check "background glyph" '[ "$(ring_glyph background)" = "🔇" ]'
+check "description = glyph + marker" '[ "$(ring_description focus "⏸ waiting on you: x")" = "🔊 ⏸ waiting on you: x" ]'
+check "description without marker = glyph" '[ "$(ring_description background "")" = "🔇" ]'
+check "three distinct colours" '[ "$(printf "%s\n" "$(ring_color focus)" "$(ring_color secondary)" "$(ring_color background)" | sort -u | wc -l | tr -d " ")" = 3 ]'
+check "focus notifies when waiting" 'ring_should_notify focus waiting'
+check "focus notifies when done" 'ring_should_notify focus done'
+check "focus notifies without marker" 'ring_should_notify focus none'
+check "secondary notifies when waiting" 'ring_should_notify secondary waiting'
+check "secondary silent when done" '! ring_should_notify secondary done'
+check "background silent when waiting" '! ring_should_notify background waiting'
+
+echo ""
+
+echo "Ring painting (cmux calls):"
+paint() {  # $1 session, $2 message, $3 workspace -> the cmux calls it made
+  : > "$CMUX_LOG"
+  stop_payload "$1" /tmp/nowhere "$2" | run_stop env CMUX_WORKSPACE_ID="$3" CMUX_SURFACE_ID=sf-9 >/dev/null 2>&1
+  cat "$CMUX_LOG"
+}
+calls=$(paint s5 "⏸ waiting on you: rerun? · blocks: DC" ws-5)
+check "sets description on its own workspace" '[[ "$calls" == *"set-description|--workspace|ws-5|--description|🔊 ⏸ waiting on you: rerun? · blocks: DC"* ]]'
+check "sets layer colour" '[[ "$calls" == *"set-color|--workspace|ws-5|--color|$(ring_color focus)"* ]]'
+check "focus notifies with reply on its surface" '[[ "$calls" == *"notify|--reply|--workspace|ws-5|--surface|sf-9|--title|🔊 "* ]]'
+check "notification body is the marker" '[[ "$calls" == *"--body|⏸ waiting on you: rerun? · blocks: DC"* ]]'
+calls=$(paint s6 "⏸ waiting on you: which fixture?" ws-6)
+check "background waiting: painted grey" '[[ "$calls" == *"--color|$(ring_color background)"* ]]'
+check "background waiting: no notification" '[[ "$calls" != *notify* ]]'
+calls=$(paint s7 "✓ merged #506" ws-7)
+check "secondary done: no notification" '[[ "$calls" == *"🔉 ✓ merged #506"* && "$calls" != *notify* ]]'
+calls=$(paint s8 "⏸ waiting on you: squash #506?" ws-8)
+check "secondary waiting: notifies" '[[ "$calls" == *"notify|--reply"* ]]'
+printf '%s' '{"windows":[{"workspaces":[{"id":"ws-other","panes":[{"surfaces":[{"id":"sf-1"}]}]},{"id":"ws-moved","panes":[{"surfaces":[{"id":"sf-0"},{"id":"sf-9"}]}]}]}]}' > "$RING_HOME/tree.json"
+check "workspace_of finds the surface's workspace" '[ "$(ring_workspace_of "$(cat "$RING_HOME/tree.json")" sf-9)" = ws-moved ]'
+check "workspace_of empty for unknown surface" '[ -z "$(ring_workspace_of "$(cat "$RING_HOME/tree.json")" sf-x)" ]'
+calls=$(paint s10 "✓ x" ws-stale)
+check "moved tab: paints the surface's workspace, not the stale env" '[[ "$calls" == *"--workspace|ws-moved|"* && "$calls" != *ws-stale* ]]'
+check "moved tab: card records the resolved workspace" '[ "$(jq -r .workspace "$RING_HOME/ring/s10.json")" = ws-moved ]'
+rm -f "$RING_HOME/tree.json"
+: > "$CMUX_LOG"
+stop_payload s9 /tmp/nowhere "✓ x" | run_stop env -u CMUX_WORKSPACE_ID >/dev/null 2>&1
+check "outside cmux: no cmux calls" '[ ! -s "$CMUX_LOG" ]'
 
 echo ""
 

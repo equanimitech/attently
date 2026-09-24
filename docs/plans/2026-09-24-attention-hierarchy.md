@@ -60,6 +60,15 @@ Hierarchy is visible in two places: the custom sidebar, and the native workspace
 - Whether the custom-sidebar context exposes `set-status` values; the plan assumes it doesn't and uses `description` + `color`.
 - Stop payload fields (`transcript_path`, `session_id`) in the current Claude Code version.
 
+### Answers (resolved empirically 2026-09-24, cmux + Claude Code 2.1.281)
+
+| Unknown | Answer |
+|---|---|
+| Env var for the cmux target | `CMUX_WORKSPACE_ID`, `CMUX_SURFACE_ID` (also `CMUX_TAB_ID`, `CMUX_PANEL_ID`, `CMUX_SOCKET_PATH`, `CMUX_BUNDLED_CLI_PATH`) are inherited by hook processes. **`CMUX_WORKSPACE_ID` goes stale** when a tab is moved to another workspace (observed: env said workspace:9, the surface lived in workspace:10). The surface id is stable, so the hook resolves the workspace through `cmux tree --all --json --id-format uuids` (~30 ms) and falls back to the env. |
+| Does cmux already notify on agent stop? | **Yes.** cmux's `claude` wrapper injects its own hooks via `--settings` (`cmux hooks enqueue claude stop`, …) and posts a `turn-complete` notification for every session. "Don't call notify" is not enough to silence the periphery: a cmux `notifications.hooks` filter must drop built-in Claude `turn-complete` banners so the ring owns them (snippet in README). The wrapper also sets `CMUX_SUPPRESS_SUBAGENT_NOTIFICATIONS=1`. |
+| Does the sidebar context expose `set-status` values? | **No.** `workspaces[]` exposes `description`, `color`, `progress`, `latestMessage`, `agents[]` (with `status`) and more, but no status pills. The plan holds: the hook writes `description` (layer glyph + marker) and `color`; the sidebar reads them. |
+| Stop payload fields | `session_id`, `transcript_path`, `cwd`, `prompt_id`, `permission_mode`, `hook_event_name`, `stop_hook_active`, `background_tasks`, `session_crons`, and **`last_assistant_message`** (the final text). The hook uses `last_assistant_message`, falling back to the transcript tail. |
+
 ## No-gos (v1)
 
 - No server, no polling loop.

@@ -3,7 +3,8 @@
 # attently ring -- the fleet-level glance.
 #
 # Sourced by attently.sh on the Stop hook. Reads the turn's last line, writes one card per
-# session, and nothing else. Every function below except ring_stop is pure: text in, text out.
+# session, and paints the cmux workspace from it. Every function below except ring_stop,
+# ring_paint and ring_cmux is pure: text in, text out.
 #
 # Cards live in $ATTENTLY_HOME/ring/<session>.json (default ~/.claude/attently/ring/).
 # Priorities are read from $ATTENTLY_HOME/today.md, written by the reader, never by attently.
@@ -63,6 +64,55 @@ ring_layer() {
         END { print (best == 1 ? "focus" : best == 2 ? "secondary" : "background") }'
 }
 
+# How a layer looks in cmux: the glyph opens the workspace description, the colour tints the tab.
+ring_glyph() {
+    case "$1" in focus) printf '🔊' ;; secondary) printf '🔉' ;; *) printf '🔇' ;; esac
+}
+ring_color() {
+    case "$1" in focus) printf '#3B82F6' ;; secondary) printf '#8B9DC3' ;; *) printf '#6B7280' ;; esac
+}
+
+# "<glyph> <marker>", or the glyph alone when the turn left no marker.
+ring_description() {
+    printf '%s%s' "$(ring_glyph "$1")" "${2:+ $2}"
+}
+
+# Focus always reaches the reader; secondary only when it waits on them; background never.
+ring_should_notify() {
+    case "$1:$2" in focus:*) return 0 ;; secondary:waiting) return 0 ;; *) return 1 ;; esac
+}
+
+ring_cmux() {
+    "${ATTENTLY_CMUX:-${CMUX_BUNDLED_CLI_PATH:-cmux}}" "$@" 2>/dev/null
+}
+
+# The workspace holding surface $2, from `cmux tree --json` output $1.
+ring_workspace_of() {
+    jq -r --arg s "$2" '.. | objects | select(has("panes"))
+        | select([.panes[]?.surfaces[]?.id] | index($s)) | .id' <<<"$1" 2>/dev/null | head -n 1
+}
+
+# CMUX_WORKSPACE_ID is fixed at launch and goes stale when a tab moves to another workspace;
+# the surface id does not. Resolve through the surface, fall back to the env.
+ring_workspace() {
+    local ws=""
+    [ -n "${CMUX_SURFACE_ID:-}" ] &&
+        ws=$(ring_workspace_of "$(ring_cmux tree --all --json --id-format uuids)" "$CMUX_SURFACE_ID")
+    printf '%s' "${ws:-${CMUX_WORKSPACE_ID:-}}"
+}
+
+# Paint the workspace and, when the layer earns it, notify with an inline reply.
+ring_paint() {
+    local layer="$1" marker="$2" label="$3" workspace="$4"
+    [ -n "$workspace" ] || return 0
+    ring_cmux workspace-action --action set-description --workspace "$workspace" \
+        --description "$(ring_description "$layer" "$marker")"
+    ring_cmux workspace-action --action set-color --workspace "$workspace" --color "$(ring_color "$layer")"
+    ring_should_notify "$layer" "$(ring_state "$marker")" || return 0
+    ring_cmux notify --reply --workspace "$workspace" ${CMUX_SURFACE_ID:+--surface "$CMUX_SURFACE_ID"} \
+        --title "$(ring_glyph "$layer") $label" --body "${marker:-turn complete}"
+}
+
 # Last assistant text from a transcript; fallback for payloads without last_assistant_message.
 ring_transcript_text() {
     [ -f "$1" ] || return 0
@@ -72,7 +122,7 @@ ring_transcript_text() {
 
 # Stop hook entry point. $1 = the Stop payload JSON.
 ring_stop() {
-    local payload="$1" session cwd msg marker branch blocks layer card tmp
+    local payload="$1" session cwd msg marker branch blocks layer workspace card tmp
     session=$(jq -r '.session_id // empty' <<<"$payload" 2>/dev/null | tr -cd 'A-Za-z0-9_-')
     [ -n "$session" ] || return 0
     cwd=$(jq -r '.cwd // empty' <<<"$payload")
@@ -84,6 +134,8 @@ ring_stop() {
     blocks=$(ring_blocks "$marker")
     layer=$(ring_layer "$(cat "$ATTENTLY_HOME/today.md" 2>/dev/null)" "$branch $cwd $marker" "$blocks")
 
+    workspace=$(ring_workspace)
+
     mkdir -p "$ATTENTLY_HOME/ring" || return 0
     card="$ATTENTLY_HOME/ring/$session.json"
     tmp="$card.tmp.$$"
@@ -91,11 +143,13 @@ ring_stop() {
         --arg session "$session" --arg cwd "$cwd" --arg branch "$branch" \
         --arg marker "$marker" --arg state "$(ring_state "$marker")" \
         --arg blocks "$blocks" --arg layer "$layer" \
-        --arg workspace "${CMUX_WORKSPACE_ID:-}" --arg surface "${CMUX_SURFACE_ID:-}" \
+        --arg workspace "$workspace" --arg surface "${CMUX_SURFACE_ID:-}" \
         --argjson ts "$(date +%s)" \
         '{session:$session, cwd:$cwd, branch:$branch, marker:$marker, state:$state,
           blocks:$blocks, layer:$layer, workspace:$workspace, surface:$surface, ts:$ts}' \
         >"$tmp" && mv -f "$tmp" "$card"
+
+    ring_paint "$layer" "$marker" "${branch:-${cwd##*/}}" "$workspace"
 
     # ponytail: age-based prune, not SessionEnd cleanup. Cards of dead sessions linger 2 days.
     find "$ATTENTLY_HOME/ring" -name '*.json' -mtime +2 -delete 2>/dev/null || true
