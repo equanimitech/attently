@@ -12,12 +12,36 @@
 # additionalContext so it lands as system context. UserPromptSubmit emits a one-line nudge as
 # raw text. Stop writes the ring card (a silent no-op outside cmux).
 #
-# Always exits 0. attently never blocks a turn.
+# Always exits 0 as a hook. attently never blocks a turn.
+#
+# `attently.sh ring install-sidebar [--force]` copies the ring sidebar into cmux. It never
+# overwrites a different ring.swift unless --force, and then keeps a .bak copy.
 
 set -u
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$DIR/../.." && pwd)"
+
+if [ "${1:-}" = ring ]; then
+  [ "${2:-}" = install-sidebar ] || { echo "usage: attently.sh ring install-sidebar [--force]" >&2; exit 2; }
+  src="$ROOT/sidebar/ring.swift"
+  dest_dir="${CMUX_SIDEBARS_DIR:-$HOME/.config/cmux/sidebars}"
+  dest="$dest_dir/ring.swift"
+  if [ -f "$dest" ] && cmp -s "$src" "$dest"; then
+    echo "ring sidebar already installed: $dest"
+  elif [ -f "$dest" ] && [ "${3:-}" != --force ]; then
+    echo "a different $dest exists; not overwriting. Compare: diff '$dest' '$src'" >&2
+    echo "Replace it (keeping a .bak copy): attently.sh ring install-sidebar --force" >&2
+    exit 1
+  else
+    mkdir -p "$dest_dir"
+    [ -f "$dest" ] && cp "$dest" "$dest.bak.$(date +%Y%m%d%H%M%S)"
+    cp "$src" "$dest"
+    echo "ring sidebar installed: $dest"
+    echo "Show it: cmux sidebar select ring (or right-click the sidebar button -> ring)"
+  fi
+  exit 0
+fi
 
 # Hooks are handed JSON on stdin. Only Stop uses it; reading it all also drains it so the
 # writer never sees EPIPE.

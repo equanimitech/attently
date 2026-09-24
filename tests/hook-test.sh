@@ -242,6 +242,28 @@ check "outside cmux: no cmux calls" '[ ! -s "$CMUX_LOG" ]'
 
 echo ""
 
+# --- ring: sidebar + install ---
+
+echo "Ring sidebar:"
+SB="$ROOT/sidebar/ring.swift"
+check "ring.swift exists" '[ -f "$SB" ]'
+check "classifies by the hook's glyphs" 'grep -q "hasPrefix(\"🔊\")" "$SB" && grep -q "hasPrefix(\"🔉\")" "$SB"'
+check "tap selects the workspace" 'grep -q "cmux(\"workspace.select\", workspace_id: w.id)" "$SB"'
+check "background collapses to one menu row" 'grep -q "parked · " "$SB"'
+check "reads only live cmux context (no file or shell access)" '! grep -qE "readFile|Process\(|FileManager|\.claude/attently" "$SB"'
+
+SB_DIR=$(mktemp -d)
+install_sb() { CMUX_SIDEBARS_DIR="$SB_DIR" bash "$ROOT/bin/attently-ring" install-sidebar "$@"; }
+check "installs when absent" 'install_sb && cmp -s "$SB" "$SB_DIR/ring.swift"'
+check "idempotent when identical" 'install_sb | grep -q "already installed"'
+echo "// mine" > "$SB_DIR/ring.swift"
+check "refuses to overwrite a different ring.swift" '! install_sb 2>/dev/null && [ "$(cat "$SB_DIR/ring.swift")" = "// mine" ]'
+check "--force replaces it and keeps a backup" 'install_sb --force && cmp -s "$SB" "$SB_DIR/ring.swift" && grep -q "// mine" "$SB_DIR"/ring.swift.bak.*'
+check "unknown ring subcommand exits non-zero" '! bash "$SCRIPT" ring nope 2>/dev/null'
+rm -rf "$SB_DIR"
+
+echo ""
+
 # --- contract files ---
 
 echo "Contract files:"
