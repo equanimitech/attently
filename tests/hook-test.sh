@@ -150,6 +150,43 @@ check "malformed payload exits 0" 'printf "not json" | run_stop env CMUX_WORKSPA
 
 echo ""
 
+# --- ring: classifier + escalation (pure) ---
+
+echo "Ring classifier:"
+today="# today
+1. DC — dommage_corporel, DEV-1706, DEV-1713, #467
+2. RB — rupture_brutale, DEV-1712, #506
+3. OPS: kamal, ovh
+- a note that is not a priority"
+check "branch matches priority 1 -> focus" '[ "$(ring_layer "$today" "dev-1706-strict-collapse /x/leggia" "")" = focus ]'
+check "cwd matches priority 2 -> secondary" '[ "$(ring_layer "$today" "main /x/rupture_brutale/y" "")" = secondary ]'
+check "marker term matches (case-insensitive)" '[ "$(ring_layer "$today" "main /x ⏸ waiting on you: review #506" "")" = secondary ]'
+check "first term after the em dash matches" '[ "$(ring_layer "$today" "main /x/dommage_corporel" "")" = focus ]'
+check "first term after a colon matches" '[ "$(ring_layer "1. OPS: kamal" "kamal" "")" = focus ]'
+check "rank is order of appearance, not the written number" '[ "$(ring_layer "3. OPS: kamal
+1. X — y" "kamal" "")" = focus ]'
+check "priority 3 -> background" '[ "$(ring_layer "$today" "kamal-deploy /x" "")" = background ]'
+check "no match -> background" '[ "$(ring_layer "$today" "feat/ring /x/attently" "")" = background ]'
+check "key alone does not match (dc inside docs)" '[ "$(ring_layer "$today" "main /x/docs" "")" = background ]'
+check "best rank wins when both match" '[ "$(ring_layer "$today" "dev-1712 dev-1713" "")" = focus ]'
+check "blocks: DC escalates background to focus" '[ "$(ring_layer "$today" "prefect-runs /x/ops" "DC")" = focus ]'
+check "blocks: rb escalates to secondary" '[ "$(ring_layer "$today" "prefect-runs /x/ops" "rb")" = secondary ]'
+check "blocks never demotes" '[ "$(ring_layer "$today" "dev-1706" "RB")" = focus ]'
+check "unknown blocks key -> background" '[ "$(ring_layer "$today" "x" "ZZ")" = background ]'
+check "no today.md -> background" '[ "$(ring_layer "" "dev-1706" "DC")" = background ]'
+
+echo ""
+
+echo "Ring Stop hook layers:"
+printf '%s\n' "$today" > "$RING_HOME/today.md"
+stop_payload s3 /tmp/nowhere "⏸ waiting on you: rerun the stuck flows? · blocks: DC" \
+  | run_stop env CMUX_WORKSPACE_ID=ws-3 >/dev/null 2>&1
+check "blocking card escalates to focus" '[ "$(jq -r .layer "$RING_HOME/ring/s3.json")" = focus ]'
+stop_payload s4 /tmp/nowhere "✓ refactored the parser" | run_stop env CMUX_WORKSPACE_ID=ws-4 >/dev/null 2>&1
+check "unmatched card is background" '[ "$(jq -r .layer "$RING_HOME/ring/s4.json")" = background ]'
+
+echo ""
+
 # --- contract files ---
 
 echo "Contract files:"
