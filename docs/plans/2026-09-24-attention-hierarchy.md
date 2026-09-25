@@ -94,3 +94,21 @@ Priority source later: zenborg fence (declared, label + paths) replaces today.md
 2. **Tab titles.** `cmux rename-tab` is sticky: OSC 0 and OSC 2 titles written by the process afterwards do not overwrite it (tested on a throwaway workspace, since closed). `cmux tab-action --action clear-name` drops the custom name and the live process title returns. So the glyph lives in the tab title; restore = `clear-name` when the pre-ring title was Claude's own, `rename-tab <original>` when the user had named it. No API exposes "has custom name", so that call is a heuristic (Claude titles open with ✳ or a braille spinner).
 3. **Sidebar context.** Enough for the tree: each workspace has `tabs[]` (`id`, `surfaceId`, `title`, `focused`, `directory`, `branch`) and `agents[]` (`kind`, `status` idle|working|needs_input|ended, `surfaceId`, `title` = first prompt). Rows join `agents[].surfaceId` to `tabs[].surfaceId`; layer = tab-title glyph; state = native `agents[].status`. Tap = `workspace.select` + `surface.focus`. Rituals: `workspace.create {title, initial_input, focus}` verified over `cmux rpc` on a throwaway. Selecting a custom sidebar needs `customSidebars.beta.enabled` (on by default in this build).
 4. **Notification gating** moves to a cmux notification hook (`notifications.hooks` in cmux.json): cmux already notifies natively for Claude turn-complete / needs-permission / idle-reminder, so attently no longer posts its own turn notifications; the filter silences background and quiet secondary sessions (record kept, so Feed still has them).
+
+---
+
+## Next bet: zenborg as launch pad (2026-09-25)
+
+Intention before attention. Today the ring *infers* a session's priority after the fact (terms, branch, last message). A session launched from a zenborg moment carries its area and priority from birth — the classifier, today.md and marker compliance mostly dissolve.
+
+| Layer | Job |
+|---|---|
+| zenborg | holds intention (areas, moments, fences) and **launches** work |
+| cmux | where work happens: workspace = area, tab = session |
+| attently ring | renders the hierarchy; reads only |
+
+Also answers "I never see anything from zenborg": setting an intention *becomes* starting work, instead of an invisible extra step.
+
+Cheapest v1 (no zenborg UI): ☀️ Sunrise runs `/sunrise` (exists) → today's planted moments → each becomes a launch row in the ring sidebar → tap = open/select the area workspace + new tab running `claude` seeded with the moment; the session's card records `moment_id`, `area`, `layer` at birth. Later: ring reads zenborg moments + declared fences instead of today.md; launch pad inside the zenborg app.
+
+Constraints: fences stay declared-only (stamped 2026-08-20); launching is user-initiated, never derived.
