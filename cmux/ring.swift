@@ -6,8 +6,9 @@
 // tap it.
 //
 // Reads only live cmux state. The attently hooks are the bridge: a Claude tab's title opens
-// with its layer glyph (🔊 focus, 🔉 secondary, 🔇 background) and a workspace description with
-// its area rollup ("🔊 DC · 2 waiting on you"). Working / waiting / idle is cmux's own agent status.
+// with its layer glyph (◉ focus, ◎ secondary, ○ background) and a workspace description with
+// its area rollup ("◉ DC · 2 waiting on you"). Working / waiting / idle is cmux's own agent status.
+// 🔊 / 🔉 are still read: tabs painted before 0.4.1 keep them until their session's next turn.
 
 func desc(_ w) -> String {
   return w.description != nil ? w.description : ""
@@ -31,14 +32,18 @@ func titleOf(_ w, _ a) -> String {
 
 func layerOf(_ w, _ a) -> String {
   let t = titleOf(w, a)
+  if t.hasPrefix("◉") { return "focus" }
   if t.hasPrefix("🔊") { return "focus" }
+  if t.hasPrefix("◎") { return "secondary" }
   if t.hasPrefix("🔉") { return "secondary" }
   return "background"
 }
 
 func areaRank(_ w) -> Int {
   let r = rollup(w)
+  if r.hasPrefix("◉") { return 1 }
   if r.hasPrefix("🔊") { return 1 }
+  if r.hasPrefix("◎") { return 2 }
   if r.hasPrefix("🔉") { return 2 }
   return 3
 }
@@ -48,7 +53,7 @@ func waiting(_ a) -> Bool {
 }
 
 func stateText(_ a) -> String {
-  if a.status == "needs_input" { return "⏸ waiting on you" }
+  if a.status == "needs_input" { return "✋ waiting on you" }
   if a.status == "working" { return "… working" }
   return "✓ idle"
 }
@@ -93,7 +98,7 @@ func secondaryRow(_ w, _ a) -> some View {
     cmux("surface.focus", surface_id: a.surfaceId)
   }) {
     HStack(spacing: 6) {
-      Text(waiting(a) ? "⏸" : "·").font(.system(size: 10)).foregroundColor("#8B9DC3")
+      Text(waiting(a) ? "✋" : "·").font(.system(size: 10)).foregroundColor("#8B9DC3")
       Text(titleOf(w, a)).font(.system(size: 11)).foregroundColor(.secondary).lineLimit(1).truncationMode(.tail)
       Spacer()
     }
@@ -121,9 +126,9 @@ func area(_ w) -> some View {
     ForEach(secondary.filter { waiting($0) }) { a in secondaryRow(w, a) }
     ForEach(secondary.filter { !waiting($0) }) { a in secondaryRow(w, a) }
     if background.count > 0 {
-      Menu("🔇 \(background.count - backgroundWaiting.count) parked · \(backgroundWaiting.count) waiting") {
+      Menu("○ \(background.count - backgroundWaiting.count) parked · \(backgroundWaiting.count) waiting") {
         ForEach(backgroundWaiting) { a in
-          Button("⏸ \(titleOf(w, a))") {
+          Button("✋ \(titleOf(w, a))") {
             cmux("workspace.select", workspace_id: w.id)
             cmux("surface.focus", surface_id: a.surfaceId)
           }

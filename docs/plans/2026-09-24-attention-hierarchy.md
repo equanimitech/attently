@@ -26,6 +26,8 @@ This extends attently's glance / click / ask from a single reply to the whole fl
 | 🔉 Secondary | sessions serving priority 2 | only when blocked on Rafa | below, muted colour, one line | when focus is quiet |
 | 🔇 Background | everything else | none | one collapsed row "N parked · M waiting", grey | on demand, between blocks |
 
+**2026-09-29 (v0.4.1):** glyphs are now ◉ ◎ ○ for the layers and ✋ for waiting on you. ⏸ read as "paused", not "needs you", and the speakers blurred together at tab-title size; concentric rings express center → periphery and stay monochrome, so the one coloured glyph (✋) shows exactly when a session needs Rafa. A legacy `⏸` marker still parses.
+
 Hierarchy is visible in two places: the custom sidebar, and the native workspace tab colours (`cmux workspace-action --color`), so the periphery is quiet even without the sidebar.
 
 **Escalation:** a background/secondary session whose card says it blocks a focus priority (`blocks: DC`) is promoted to Focus. Example that motivated it: 1b's stuck DC Prefect runs blocking the annotation queue.

@@ -33,9 +33,11 @@ ring_strip_md() {
         -e 's/^[[:space:]]+//' -e 's/[[:space:]]+$//'
 }
 
-# The marker is the last non-empty line, stripped of markdown, when it opens with ⏸ or a check
-# (✓ ✔ ✅, normalised to ✓). Capped at RING_MARKER_MAX characters. Optional: a turn without
-# one is fine, the state then comes from cmux's own agent events.
+# The marker is the last non-empty line, stripped of markdown, when it opens with ✋ or a check
+# (✓ ✔ ✅, normalised to ✓). ⏸, the waiting glyph before 0.4.1, and a trailing emoji variation
+# selector are normalised to a bare ✋, so sessions started under the old contract still parse.
+# Capped at RING_MARKER_MAX characters. Optional: a turn without one is fine, the state then
+# comes from cmux's own agent events.
 ring_marker() {
     local last
     last=$(printf '%s\n' "$1" | awk 'NF { l = $0 } END { print l }')
@@ -44,7 +46,9 @@ ring_marker() {
         "✔"*) last="✓${last#✔}" ;;
         "✅"*) last="✓${last#✅}" ;;
     esac
-    case "$last" in "⏸"* | "✓"*) ;; *) return 0 ;; esac
+    last=${last/#⏸/✋}
+    last=${last/#✋️/✋} # drops the invisible U+FE0F after ✋
+    case "$last" in "✋"* | "✓"*) ;; *) return 0 ;; esac
     if [ "$(printf '%s' "$last" | LC_ALL=en_US.UTF-8 wc -m | tr -d ' ')" -gt "$RING_MARKER_MAX" ]; then
         last="$(printf '%s' "$last" | LC_ALL=en_US.UTF-8 cut -c "1-$((RING_MARKER_MAX - 1))")…"
     fi
@@ -53,12 +57,13 @@ ring_marker() {
 
 # waiting | done | none
 ring_marker_state() {
-    case "$1" in "⏸"*) printf 'waiting' ;; "✓"*) printf 'done' ;; *) printf 'none' ;; esac
+    case "$1" in "✋"* | "⏸"*) printf 'waiting' ;; "✓"*) printf 'done' ;; *) printf 'none' ;; esac
 }
 
-# The priority key after "blocks:" on a waiting marker. Not "unblocks:", never on a ✓ line.
+# The priority key after "blocks:" on a waiting marker (✋, or the legacy ⏸). Not "unblocks:",
+# never on a ✓ line.
 ring_blocks() {
-    case "$1" in "⏸"*) ;; *) return 0 ;; esac
+    case "$1" in "✋"* | "⏸"*) ;; *) return 0 ;; esac
     printf '%s' "$1" | sed -nE 's/.*[^[:alnum:]_]blocks:[[:space:]]*([A-Za-z0-9_]+).*/\1/p'
 }
 
@@ -152,10 +157,10 @@ ring_next_state() {
 # =============================================================================================
 
 ring_glyph() {
-    case "$1" in focus) printf '🔊' ;; secondary) printf '🔉' ;; *) printf '🔇' ;; esac
+    case "$1" in focus) printf '◉' ;; secondary) printf '◎' ;; *) printf '○' ;; esac
 }
 ring_state_glyph() {
-    case "$1" in waiting) printf '⏸' ;; done) printf '✓' ;; working) printf '…' ;; esac
+    case "$1" in waiting) printf '✋' ;; done) printf '✓' ;; working) printf '…' ;; esac
 }
 
 # Midday quiet paints every session as background.
@@ -168,9 +173,9 @@ ring_tab_title() {
     printf '%s%s %s' "$(ring_glyph "$1")" "$(ring_state_glyph "$2")" "$3"
 }
 
-# A title with any ring prefix removed.
+# A title with any ring prefix removed, including the speaker / ⏸ prefixes painted before 0.4.1.
 ring_strip_ours() {
-    printf '%s' "$1" | sed -E 's/^(🔊|🔉|🔇)(⏸|✓|…)?[[:space:]]*//'
+    printf '%s' "$1" | sed -E 's/^(◉|◎|○|🔊|🔉|🔇)(✋|⏸|✓|…)?[[:space:]]*//'
 }
 
 # The base a ring title is built on: our prefix and Claude's own ✳ / spinner glyph removed.
@@ -186,7 +191,7 @@ ring_is_process_title() {
     printf '%s' "$1" | LC_ALL=en_US.UTF-8 grep -q '^[⠀-⣿]'
 }
 
-# Workspace rollup "🔊 DC · 3 waiting on you".
+# Workspace rollup "◉ DC · 3 waiting on you".
 #   $1 JSON array of the workspace's cards ({layer, key, state}), $2 quiet flag,
 #   $3 ritual label to append (optional).
 ring_rollup() {
@@ -197,7 +202,7 @@ ring_rollup() {
         | select(({focus: 1, secondary: 2}[.layer] // 3) == $b) | .key // "" | select(. != "")]
         | first // ""' <<<"$1")
     waiting=$(jq '[.[] | select(.state == "waiting")] | length' <<<"$1")
-    case "$best" in 1) parts="🔊" ;; 2) parts="🔉" ;; *) parts="🔇" ;; esac
+    case "$best" in 1) parts="◉" ;; 2) parts="◎" ;; *) parts="○" ;; esac
     [ -n "$key" ] && parts="$parts $key"
     [ "$waiting" -gt 0 ] && parts="$parts · $waiting waiting on you"
     [ -n "$3" ] && parts="$parts · $3"
@@ -209,10 +214,11 @@ ring_description() {
     if [ -n "$2" ]; then printf '%s\n%s' "$1" "$2"; else printf '%s' "$1"; fi
 }
 
-# The reader's part of a description the ring may have painted (its first line is ours).
+# The reader's part of a description the ring may have painted (its first line is ours; the
+# speaker glyphs are what it painted before 0.4.1).
 ring_user_description() {
     case "$1" in
-        "🔊"* | "🔉"* | "🔇"*) printf '%s\n' "$1" | sed '1d' ;;
+        "◉"* | "◎"* | "○"* | "🔊"* | "🔉"* | "🔇"*) printf '%s\n' "$1" | sed '1d' ;;
         *) printf '%s' "$1" ;;
     esac
 }
@@ -243,7 +249,7 @@ ring_reorder_args() {
 ring_waiting_line() {
     jq -r '[.[] | select(.state == "waiting")] as $w
         | if ($w | length) == 0 then "Nothing waits on you."
-          else "⏸ \($w | length) waiting on you: " + ($w | map(.base // .cwd // .session) | join(", ")) end' <<<"$1"
+          else "✋ \($w | length) waiting on you: " + ($w | map(.base // .cwd // .session) | join(", ")) end' <<<"$1"
 }
 
 # Open items per area, for the sunset ritual. $1 JSON array of cards.
@@ -251,7 +257,7 @@ ring_open_items() {
     jq -r 'map(select(.state == "waiting" or .state == "working"))
         | group_by(.ws_title // "")
         | map("\(.[0].ws_title // "unplaced"): "
-              + (map((if .state == "waiting" then "⏸ " else "… " end) + (.base // .cwd // .session)
+              + (map((if .state == "waiting" then "✋ " else "… " end) + (.base // .cwd // .session)
                      + (if (.marker // "") != "" then " (\(.marker))" else "" end)) | join("; ")))
         | .[]' <<<"$1"
 }

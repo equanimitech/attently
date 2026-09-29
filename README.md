@@ -65,11 +65,11 @@ title, and the workspace description carries the area's rollup:
 
 | Layer | Who | Tab | Notifications (with the filter below) |
 |---|---|---|---|
-| 🔊 Focus | serves priority 1, or blocks it | `🔊⏸ leggia`, first in its pane | cmux's own, untouched |
-| 🔉 Secondary | serves priority 2 | `🔉✓ minerva`, after the focus tabs | only when it waits on you |
-| 🔇 Background | everything else | `🔇… attently`, last | none; still in Feed on demand |
+| ◉ Focus | serves priority 1, or blocks it | `◉✋ leggia`, first in its pane | cmux's own, untouched |
+| ◎ Secondary | serves priority 2 | `◎✓ minerva`, after the focus tabs | only when it waits on you |
+| ○ Background | everything else | `○… attently`, last | none; still in Feed on demand |
 
-State glyphs: `⏸` waiting on you, `…` working, `✓` done. Area rollup: `🔊 DC · 2 waiting on you`,
+State glyphs: `✋` waiting on you, `…` working, `✓` done. Area rollup: `◉ DC · 2 waiting on you`,
 above whatever description you had written, which stays and comes back when the last session
 leaves.
 
@@ -84,12 +84,12 @@ whole words of 3+ characters:
 
 A session's layer is **sticky**: once a turn places it, later turns can only move it inward,
 until `today.md` changes. A turn that needs you asks through AskUserQuestion (answered inline
-from cmux Feed, Ctrl-4); otherwise its last line can say `⏸ waiting on you: <decision>`. That
+from cmux Feed, Ctrl-4); otherwise its last line can say `✋ waiting on you: <decision>`. That
 marker is optional: waiting and done come from cmux's own agent events. Only
-`⏸ … · blocks: DC` escalates a peripheral session to DC's layer.
+`✋ … · blocks: DC` escalates a peripheral session to DC's layer.
 
 The `ring` sidebar shows areas, then their Claude tabs: focus expanded, secondary one line,
-background collapsed per area (`🔇 N parked · M waiting`). Tap a tab to focus it.
+background collapsed per area (`○ N parked · M waiting`). Tap a tab to focus it.
 
 ### Rituals arrive when you do
 
@@ -100,7 +100,7 @@ per phase per day: a ritual row on top of the sidebar (`☀️ Sunrise ready`, `
 tap it (or a Dock control, or `attently-ring ritual <name>`):
 
 - **Sunrise** opens a Ritual workspace running `claude "/sunrise"`.
-- **Midday** quiets everything to 🔇 until your next prompt and prints one line of what waits.
+- **Midday** quiets everything to ○ until your next prompt and prints one line of what waits.
 - **Sunset** lists open items per area, then runs `claude "/sunset …"` with them.
 
 Typing `/sunrise` or `/sunset` yourself counts too.
@@ -134,8 +134,8 @@ prefix with `!` (`! attently-ring install sidebar`).
 **Watched QA run.** Before selecting it, open the sidebar as a pane you can close:
 `cmux sidebar validate ring && cmux sidebar open ring`. Then, in a scratch workspace, start
 `claude`, send one prompt that names a `today.md` term, and watch: the tab title gains
-`🔊…` then `🔊✓`, the workspace description shows the rollup, the pane lists the tab under its
-area, and tapping it focuses the tab. Ask it to use AskUserQuestion and the tab turns `⏸`.
+`◉…` then `◉✓`, the workspace description shows the rollup, the pane lists the tab under its
+area, and tapping it focuses the tab. Ask it to use AskUserQuestion and the tab turns `✋`.
 `attently-ring restore` gives every tab and description back; `cmux automation logs` shows
 each firing.
 

@@ -57,7 +57,7 @@ AskUserQuestion tool when it is available: the reader answers it inline (in cmux
 Feed) instead of hunting for the tab. Otherwise end the reply with one marker line, alone and
 last:
 
-- `⏸ waiting on you: <the decision, in one clause>` when the turn cannot continue without the reader.
+- `✋ waiting on you: <the decision, in one clause>` when the turn cannot continue without the reader.
   Add ` · blocks: <KEY>` when that decision holds up a priority named in `~/.claude/attently/today.md`.
 - `✓ <one-line outcome>` when the turn is done.
 

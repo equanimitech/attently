@@ -93,10 +93,11 @@ echo ""
 
 echo "Ring convention:"
 check "session-start: a decision goes through AskUserQuestion" '[[ "$ctx" == *"AskUserQuestion"* ]]'
-check "session-start: the marker is the fallback" '[[ "$ctx" == *"⏸ waiting on you:"* ]]'
+check "session-start: the marker is the fallback" '[[ "$ctx" == *"✋ waiting on you:"* ]]'
 check "session-start: the marker is optional" '[[ "$ctx" == *"optional"* ]]'
 check "turn nudge names AskUserQuestion" '[[ "$turn_output" == *"AskUserQuestion"* ]]'
-check "turn nudge names the marker" '[[ "$turn_output" == *"⏸"* ]]'
+check "turn nudge names the marker" '[[ "$turn_output" == *"✋"* ]]'
+check "contracts name only the new waiting glyph" '! grep -q "⏸" "$ROOT/contract/turn.md" "$ROOT/contract/session-start.md"'
 
 echo ""
 
@@ -105,22 +106,27 @@ echo ""
 echo "Ring markers:"
 . "$ROOT/hooks/scripts/ring.sh"
 nl=$'\n'
-check "waiting marker is the last line" '[ "$(ring_marker "Did X.${nl}${nl}⏸ waiting on you: merge A or B?  ")" = "⏸ waiting on you: merge A or B?" ]'
+check "waiting marker is the last line" '[ "$(ring_marker "Did X.${nl}${nl}✋ waiting on you: merge A or B?  ")" = "✋ waiting on you: merge A or B?" ]'
 check "done marker" '[ "$(ring_marker "✓ tests green")" = "✓ tests green" ]'
-check "bullet stripped" '[ "$(ring_marker "- ⏸ waiting on you: x")" = "⏸ waiting on you: x" ]'
+check "bullet stripped" '[ "$(ring_marker "- ✋ waiting on you: x")" = "✋ waiting on you: x" ]'
 check "backticks stripped" '[ "$(ring_marker "\`✓ merged #506\`")" = "✓ merged #506" ]'
-check "bold stripped" '[ "$(ring_marker "**⏸ waiting on you: x**")" = "⏸ waiting on you: x" ]'
+check "bold stripped" '[ "$(ring_marker "**✋ waiting on you: x**")" = "✋ waiting on you: x" ]'
 check "quote + ✅ normalised to ✓" '[ "$(ring_marker "> ✅ shipped")" = "✓ shipped" ]'
 check "✔ normalised to ✓" '[ "$(ring_marker "✔ ok")" = "✓ ok" ]'
-long="⏸ waiting on you: $(printf "x%.0s" $(seq 1 300))"
+long="✋ waiting on you: $(printf "x%.0s" $(seq 1 300))"
 check "marker capped at 160 chars" '[ "$(ring_marker "$long" | LC_ALL=en_US.UTF-8 wc -m | tr -d " ")" -eq 160 ] && [[ "$(ring_marker "$long")" == *"…" ]]'
 check "marker not on last line is ignored" '[ -z "$(ring_marker "✓ done${nl}more text")" ]'
 check "no marker, empty" '[ -z "$(ring_marker "plain reply")" ]'
-check "state waiting / done / none" '[ "$(ring_marker_state "⏸ x")$(ring_marker_state "✓ x")$(ring_marker_state "")" = waitingdonenone ]'
-check "blocks key" '[ "$(ring_blocks "⏸ waiting on you: rerun? · blocks: DC")" = DC ]'
-check "unblocks: is not blocks" '[ -z "$(ring_blocks "⏸ waiting on you: merge? · unblocks: DC")" ]'
+check "state waiting / done / none" '[ "$(ring_marker_state "✋ x")$(ring_marker_state "✓ x")$(ring_marker_state "")" = waitingdonenone ]'
+check "blocks key" '[ "$(ring_blocks "✋ waiting on you: rerun? · blocks: DC")" = DC ]'
+check "unblocks: is not blocks" '[ -z "$(ring_blocks "✋ waiting on you: merge? · unblocks: DC")" ]'
 check "blocks on a ✓ line is ignored" '[ -z "$(ring_blocks "✓ merged · blocks: DC")" ]'
-check "no blocks key" '[ -z "$(ring_blocks "⏸ waiting on you: rerun?")" ]'
+check "no blocks key" '[ -z "$(ring_blocks "✋ waiting on you: rerun?")" ]'
+vs=$'\xef\xb8\x8f'  # U+FE0F, the emoji variation selector
+check "legacy ⏸ marker normalised to ✋" '[ "$(ring_marker "- ⏸ waiting on you: x")" = "✋ waiting on you: x" ]'
+check "variation selector dropped (✋️, ⏸️)" '[ "$(ring_marker "✋${vs} x")" = "✋ x" ] && [ "$(ring_marker "⏸${vs} x")" = "✋ x" ]'
+check "legacy ⏸ is still waiting" '[ "$(ring_marker_state "⏸ x")" = waiting ]'
+check "legacy ⏸ blocks: still escalates" '[ "$(ring_blocks "⏸ waiting on you: rerun? · blocks: DC")" = DC ] && [ "$(ring_blocks "$(ring_marker "⏸ waiting on you: rerun? · blocks: DC")")" = DC ]'
 
 echo ""
 
@@ -161,7 +167,7 @@ check "prompt -> working" '[ "$(ring_next_state done prompt)" = working ]'
 check "needs_input -> waiting" '[ "$(ring_next_state working needs_input)" = waiting ]'
 check "notification mid-turn -> waiting" '[ "$(ring_next_state working notification)" = waiting ]'
 check "idle reminder after a done turn stays done" '[ "$(ring_next_state done notification)" = done ]'
-check "stop with ⏸ -> waiting" '[ "$(ring_next_state working stop:waiting)" = waiting ]'
+check "stop with ✋ -> waiting" '[ "$(ring_next_state working stop:waiting)" = waiting ]'
 check "stop without marker -> done" '[ "$(ring_next_state working stop:none)" = done ]'
 check "event kinds" '[ "$(ring_event_kind agent.needs_input)$(ring_event_kind agent.hook.AskUserQuestion)$(ring_event_kind agent.hook.Notification)" = needs_inputneeds_inputnotification ]'
 check "PreToolUse is ignored" '[ -z "$(ring_event_kind agent.hook.PreToolUse)" ]'
@@ -176,19 +182,21 @@ echo ""
 # --- ring: looks (pure) ---
 
 echo "Ring looks:"
-check "tab title = layer glyph + state glyph + base" '[ "$(ring_tab_title focus waiting leggia)" = "🔊⏸ leggia" ]'
-check "tab title without state" '[ "$(ring_tab_title background "" x)" = "🔇 x" ]'
-check "strip our prefix" '[ "$(ring_strip_ours "🔉✓ build logs")" = "build logs" ]'
-check "title base drops Claude ✳" '[ "$(ring_title_base "🔊… ✳ Fix tests")" = "Fix tests" ]'
+check "tab title = layer glyph + state glyph + base" '[ "$(ring_tab_title focus waiting leggia)" = "◉✋ leggia" ]'
+check "tab title without state" '[ "$(ring_tab_title background "" x)" = "○ x" ]'
+check "strip our prefix" '[ "$(ring_strip_ours "◎✓ build logs")" = "build logs" ]'
+check "strip a prefix painted before 0.4.1" '[ "$(ring_strip_ours "🔊⏸ build logs")" = "build logs" ] && [ "$(ring_strip_ours "🔇 x")" = "x" ]'
+check "title base drops Claude ✳" '[ "$(ring_title_base "◉… ✳ Fix tests")" = "Fix tests" ]'
 check "process titles recognised" 'ring_is_process_title "✳ Fix tests" && ring_is_process_title "⠂ Fix" && ring_is_process_title ""'
 check "a name the reader gave is not a process title" '! ring_is_process_title "build logs"'
 cards='[{"layer":"focus","key":"DC","state":"waiting"},{"layer":"background","state":"waiting"},{"layer":"secondary","key":"RB","state":"done"}]'
-check "rollup" '[ "$(ring_rollup "$cards" "" "")" = "🔊 DC · 2 waiting on you" ]'
-check "rollup, quiet" '[ "$(ring_rollup "$cards" quiet "")" = "🔇 · 2 waiting on you" ]'
+check "rollup" '[ "$(ring_rollup "$cards" "" "")" = "◉ DC · 2 waiting on you" ]'
+check "rollup, quiet" '[ "$(ring_rollup "$cards" quiet "")" = "○ · 2 waiting on you" ]'
 one_rb='[{"layer":"secondary","key":"RB","state":"done"}]'
-check "rollup with ritual" '[ "$(ring_rollup "$one_rb" "" "☀️ Sunrise ready")" = "🔉 RB · ☀️ Sunrise ready" ]'
-check "description keeps the reader text below" '[ "$(ring_description "🔊 DC" "my notes")" = "🔊 DC${nl}my notes" ]'
-check "reader part of a painted description" '[ "$(ring_user_description "🔊 DC${nl}my notes")" = "my notes" ]'
+check "rollup with ritual" '[ "$(ring_rollup "$one_rb" "" "☀️ Sunrise ready")" = "◎ RB · ☀️ Sunrise ready" ]'
+check "description keeps the reader text below" '[ "$(ring_description "◉ DC" "my notes")" = "◉ DC${nl}my notes" ]'
+check "reader part of a painted description" '[ "$(ring_user_description "◉ DC${nl}my notes")" = "my notes" ]'
+check "reader part of a description painted before 0.4.1" '[ "$(ring_user_description "🔊 DC${nl}my notes")" = "my notes" ]'
 check "reader description untouched" '[ "$(ring_user_description "my notes")" = "my notes" ]'
 check "reorder: focus goes first" '[ "$(ring_reorder_args focus s "a -${nl}s focus")" = "--index 0" ]'
 check "reorder: focus already first" '[ -z "$(ring_reorder_args focus s "s focus${nl}a -")" ]'
@@ -197,10 +205,10 @@ check "reorder: secondary already after focus" '[ -z "$(ring_reorder_args second
 check "reorder: background goes last" '[ "$(ring_reorder_args background s "s background${nl}a -${nl}b -")" = "--after b" ]'
 check "reorder: background already last" '[ -z "$(ring_reorder_args background s "a -${nl}s background")" ]'
 wl='[{"state":"waiting","base":"leggia"},{"state":"done","base":"x"}]'
-check "waiting line" '[ "$(ring_waiting_line "$wl")" = "⏸ 1 waiting on you: leggia" ]'
+check "waiting line" '[ "$(ring_waiting_line "$wl")" = "✋ 1 waiting on you: leggia" ]'
 check "waiting line, none" '[ "$(ring_waiting_line "[]")" = "Nothing waits on you." ]'
-oi='[{"state":"waiting","base":"leggia","ws_title":"DC","marker":"⏸ ship?"},{"state":"done","base":"x","ws_title":"DC"}]'
-check "open items per area" '[ "$(ring_open_items "$oi")" = "DC: ⏸ leggia (⏸ ship?)" ]'
+oi='[{"state":"waiting","base":"leggia","ws_title":"DC","marker":"✋ ship?"},{"state":"done","base":"x","ws_title":"DC"}]'
+check "open items per area" '[ "$(ring_open_items "$oi")" = "DC: ✋ leggia (✋ ship?)" ]'
 
 echo ""
 
@@ -269,35 +277,43 @@ check "prompt hook prints only the turn nudge" '[ "$prompt_out" = "$(cat "$ROOT/
 check "prompt: card is working, knows its surface" 'card s1 | jq -e ".state == \"working\" and .surface == \"sf-1\" and .workspace == \"ws-1\""'
 
 : > "$CMUX_LOG"
-stop_out=$(payload s1 /tmp/nowhere "Looked at DEV-1706.${nl}⏸ waiting on you: ship it?" | hook stop "${IN_CMUX[@]}" 2>&1)
+stop_out=$(payload s1 /tmp/nowhere "Looked at DEV-1706.${nl}✋ waiting on you: ship it?" | hook stop "${IN_CMUX[@]}" 2>&1)
 calls=$(cat "$CMUX_LOG")
 check "stop prints nothing" '[ -z "$stop_out" ]'
 check "stop: classified from the message, focus DC" 'card s1 | jq -e ".layer == \"focus\" and .key == \"DC\""'
-check "stop: ⏸ marker -> waiting" 'card s1 | jq -e ".state == \"waiting\" and .marker == \"⏸ waiting on you: ship it?\""'
-check "tab renamed with glyphs over Claude's title" '[[ "$calls" == *"rename-tab|--workspace|ws-1|--surface|sf-1|🔊⏸ Fix parser"* ]]'
+check "stop: ✋ marker -> waiting" 'card s1 | jq -e ".state == \"waiting\" and .marker == \"✋ waiting on you: ship it?\""'
+check "tab renamed with glyphs over Claude's title" '[[ "$calls" == *"rename-tab|--workspace|ws-1|--surface|sf-1|◉✋ Fix parser"* ]]'
 check "focus tab moved first in its pane" '[[ "$calls" == *"reorder-surface|--workspace|ws-1|--surface|sf-1|--index|0|--focus|false"* ]]'
-check "workspace rollup keeps the reader description" '[[ "$calls" == *"set-description|--workspace|ws-1|--description|🔊 DC · 1 waiting on you${nl}my notes"* ]]'
+check "workspace rollup keeps the reader description" '[[ "$calls" == *"set-description|--workspace|ws-1|--description|◉ DC · 1 waiting on you${nl}my notes"* ]]'
 check "no colour, no notification from the ring" '[[ "$calls" != *set-color* && "$calls" != *notify* ]]'
 check "card remembers the original title" 'card s1 | jq -e ".orig_title == \"✳ Fix parser\" and .user_named == false and .base == \"Fix parser\""'
 
 # cmux now shows what we painted
-tree "$(printf '🔊 DC · 1 waiting on you\nmy notes')" "sf-1|🔊⏸ Fix parser" "sf-0|shell"
+tree "$(printf '◉ DC · 1 waiting on you\nmy notes')" "sf-1|◉✋ Fix parser" "sf-0|shell"
 : > "$CMUX_LOG"
 payload s1 /tmp/nowhere "Refactored the tokenizer." | hook stop "${IN_CMUX[@]}"
 calls=$(cat "$CMUX_LOG")
 check "sticky: a turn without the terms keeps focus" 'card s1 | jq -e ".layer == \"focus\" and .key == \"DC\""'
 check "no marker -> done (state from events, marker optional)" 'card s1 | jq -e ".state == \"done\""'
-check "retitled, not reordered again" '[[ "$calls" == *"🔊✓ Fix parser"* && "$calls" != *reorder-surface* ]]'
-check "description repainted, reader text kept" '[[ "$calls" == *"--description|🔊 DC${nl}my notes"* ]]'
+check "retitled, not reordered again" '[[ "$calls" == *"◉✓ Fix parser"* && "$calls" != *reorder-surface* ]]'
+check "description repainted, reader text kept" '[[ "$calls" == *"--description|◉ DC${nl}my notes"* ]]'
 
 printf '1. RB — rupture_brutale\n' > "$RING_HOME/today.md"
 payload s1 /tmp/nowhere "Refactored the tokenizer." | hook stop "${IN_CMUX[@]}"
 check "a new today.md re-classifies from scratch" 'card s1 | jq -e ".layer == \"background\""'
 printf '%s\n' "$today" > "$RING_HOME/today.md"
 
-tree "" "sf-1|🔊✓ build logs"
+tree "" "sf-1|◉✓ build logs"
 payload s1 /tmp/nowhere "Refactored." | hook stop "${IN_CMUX[@]}"
 check "a tab the reader renamed keeps the reader's name as base" 'card s1 | jq -e ".base == \"build logs\" and .user_named == true"'
+
+# A session started under the pre-0.4.1 contract still ends its turn with ⏸.
+: > "$CMUX_LOG"
+payload s4 /tmp/nowhere "Checked prefect-runs.${nl}⏸ waiting on you: rerun? · blocks: DC" | hook stop "${IN_CMUX[@]}"
+check "stop: legacy ⏸ marker -> waiting, stored as ✋" 'card s4 | jq -e ".state == \"waiting\" and .marker == \"✋ waiting on you: rerun? · blocks: DC\""'
+check "stop: legacy ⏸ blocks: DC escalates to focus DC" 'card s4 | jq -e ".blocks == \"DC\" and .layer == \"focus\" and .key == \"DC\""'
+check "stop: legacy marker paints only new glyphs" 'grep -q "rename-tab.*|◉✋ " "$CMUX_LOG" && ! grep -q "⏸" "$CMUX_LOG"'
+rm -f "$RING_HOME/ring/sessions/s4.json"
 
 : > "$CMUX_LOG"
 payload s2 /tmp/nowhere "✓ done" | hook stop env -u CMUX_WORKSPACE_ID
@@ -321,7 +337,7 @@ evt() {  # name session-uuid phase
   python3 -c 'import json,sys; print(json.dumps({"name": sys.argv[1], "payload": {"session_id": sys.argv[2], "phase": sys.argv[3], "surface_id": "sf-1"}}))' "$1" "$(feed_id claude "$2")" "$3"
 }
 ring_cli() { env ATTENTLY_HOME="$RING_HOME" ATTENTLY_CMUX="$RING_HOME/cmux" ATTENTLY_PHASES=/nonexistent ATTENTLY_HOUR=5 bash "$ROOT/bin/attently-ring" "$@"; }
-tree "" "sf-1|🔊✓ build logs"
+tree "" "sf-1|◉✓ build logs"
 payload s1 /tmp/nowhere "" "go" | hook user-submit "${IN_CMUX[@]}" >/dev/null
 CMUX_AUTOMATION_EVENT_JSON="$(evt agent.hook.Notification s1 completed)" ring_cli event
 check "completed-phase frames are ignored" 'card s1 | jq -e ".state == \"working\""'
@@ -329,7 +345,7 @@ CMUX_AUTOMATION_EVENT_JSON="$(evt agent.hook.PreToolUse s1 received)" ring_cli e
 check "unrelated events are ignored" 'card s1 | jq -e ".state == \"working\""'
 : > "$CMUX_LOG"
 CMUX_AUTOMATION_EVENT_JSON="$(evt agent.hook.AskUserQuestion s1 received)" ring_cli event
-check "AskUserQuestion -> waiting, tab repainted" 'card s1 | jq -e ".state == \"waiting\"" && grep -q "rename-tab.*⏸" "$CMUX_LOG"'
+check "AskUserQuestion -> waiting, tab repainted" 'card s1 | jq -e ".state == \"waiting\"" && grep -q "rename-tab.*✋" "$CMUX_LOG"'
 payload s1 /tmp/nowhere "✓ answered" | hook stop "${IN_CMUX[@]}"
 CMUX_AUTOMATION_EVENT_JSON="$(evt agent.hook.Notification s1 received)" ring_cli event
 check "idle reminder after a done turn keeps it done" 'card s1 | jq -e ".state == \"done\""'
@@ -366,16 +382,16 @@ check "--here sunrise runs claude /sunrise" '[ "$(ATTENTLY_CLAUDE=echo ring_cli 
 midday_out=$(ATTENTLY_HOUR=14 ring_cli ritual midday --here)
 check "midday: everything quiet" '[ -f "$RING_HOME/quiet" ]'
 check "midday: one line of what waits" '[[ "$midday_out" == *"Nothing waits on you."* || "$midday_out" == *"waiting on you:"* ]]'
-check "quiet paints every tab 🔇" 'grep -q "rename-tab.*|🔇" "$CMUX_LOG"'
+check "quiet paints every tab ○" 'grep -q "rename-tab.*|○" "$CMUX_LOG"'
 payload s1 /tmp/nowhere "" "back" | hook user-submit "${IN_CMUX[@]}" >/dev/null
 check "the next prompt ends the quiet" '[ ! -f "$RING_HOME/quiet" ]'
-payload s1 /tmp/nowhere "⏸ waiting on you: merge?" | hook stop "${IN_CMUX[@]}"
+payload s1 /tmp/nowhere "✋ waiting on you: merge?" | hook stop "${IN_CMUX[@]}"
 sunset_out=$(ATTENTLY_CLAUDE=echo ATTENTLY_HOUR=20 ring_cli ritual sunset --here)
-check "sunset lists open items per area, then runs claude /sunset" '[[ "$sunset_out" == *"Open per area:"* && "$sunset_out" == *"/sunset Open per area: DC area: ⏸"* ]]'
+check "sunset lists open items per area, then runs claude /sunset" '[[ "$sunset_out" == *"Open per area:"* && "$sunset_out" == *"/sunset Open per area: DC area: ✋"* ]]'
 check "unknown ritual exits 2" 'ring_cli ritual lunch; [ $? -eq 2 ]'
 
 echo "Ring release (SessionEnd):"
-tree "$(printf '🔊 DC · 1 waiting on you\nmy notes')" "sf-1|$(card s1 | jq -r .last_title)"
+tree "$(printf '◉ DC · 1 waiting on you\nmy notes')" "sf-1|$(card s1 | jq -r .last_title)"
 : > "$CMUX_LOG"
 payload s1 /tmp/nowhere "" | hook session-end "${IN_CMUX[@]}"
 calls=$(cat "$CMUX_LOG")
@@ -384,12 +400,26 @@ check "the card is gone" '[ ! -f "$RING_HOME/ring/sessions/s1.json" ]'
 check "last session out: the reader description comes back" '[[ "$calls" == *"set-description|--workspace|ws-1|--description|my notes"* ]]'
 tree "" "sf-1|✳ Fix parser"
 payload s3 /tmp/nowhere "✓ x" | hook stop "${IN_CMUX[@]}"
-tree "$(card s3 >/dev/null; printf '🔇')" "sf-1|$(card s3 | jq -r .last_title)"
+tree "$(card s3 >/dev/null; printf '○')" "sf-1|$(card s3 | jq -r .last_title)"
 : > "$CMUX_LOG"
 payload s3 /tmp/nowhere "" | hook session-end "${IN_CMUX[@]}"
 calls=$(cat "$CMUX_LOG")
 check "Claude's own title: custom name cleared" '[[ "$calls" == *"tab-action|--action|clear-name|--workspace|ws-1|--tab|sf-1"* ]]'
 check "no reader description: cleared" '[[ "$calls" == *"clear-description|--workspace|ws-1"* ]]'
+
+echo "Ring restore of tabs painted before 0.4.1:"
+# A card written by 0.4.0: speaker + ⏸ title. Restore matches the exact title the ring last
+# wrote (last_title), so the old glyphs need no special case; the description falls back to
+# glyph sniffing when its saved record does not match.
+printf '{"session":"s5","surface":"sf-1","workspace":"ws-1","last_title":"🔊⏸ Fix parser","base":"Fix parser","user_named":false}' \
+  > "$RING_HOME/ring/sessions/s5.json"
+printf '{}' > "$RING_HOME/ring/workspaces/ws-1.json"
+tree "$(printf '🔊 DC · 1 waiting on you\nmy notes')" "sf-1|🔊⏸ Fix parser"
+: > "$CMUX_LOG"
+ring_cli restore
+calls=$(cat "$CMUX_LOG")
+check "restore: a 🔊⏸ tab gets Claude's own title back" '[[ "$calls" == *"tab-action|--action|clear-name|--workspace|ws-1|--tab|sf-1"* ]]'
+check "restore: a 🔊 rollup gives the reader description back" '[[ "$calls" == *"set-description|--workspace|ws-1|--description|my notes" ]] && [ ! -f "$RING_HOME/ring/sessions/s5.json" ]'
 
 echo ""
 
@@ -399,7 +429,9 @@ echo "Ring sidebar + templates:"
 SB="$ROOT/cmux/ring.swift"
 check "ring.swift exists" '[ -f "$SB" ]'
 check "tree joins agents to tabs by surfaceId" 'grep -q "\$0.surfaceId == a.surfaceId" "$SB"'
-check "layer from the tab title glyph" 'grep -q "hasPrefix(\"🔊\")" "$SB" && grep -q "hasPrefix(\"🔉\")" "$SB"'
+check "layer from the tab title glyph" 'grep -q "hasPrefix(\"◉\")" "$SB" && grep -q "hasPrefix(\"◎\")" "$SB"'
+check "sidebar still reads tabs painted before 0.4.1" 'grep -q "hasPrefix(\"🔊\")" "$SB" && grep -q "hasPrefix(\"🔉\")" "$SB"'
+check "sidebar shows only the new glyphs" '! grep -v hasPrefix "$SB" | grep -v "^//" | grep -qE "🔊|🔉|🔇|⏸"'
 check "state from cmux agent status" 'grep -q "needs_input" "$SB"'
 check "tap focuses the tab" 'grep -q "cmux(\"surface.focus\", surface_id: a.surfaceId)" "$SB"'
 check "background collapses per area" 'grep -q "parked · " "$SB"'
@@ -468,7 +500,7 @@ echo ""
 
 echo "Manifest honesty:"
 PJ="$ROOT/.claude-plugin/plugin.json"
-check "version 0.4.0" '[ "$(jq -r .version "$PJ")" = 0.4.0 ]'
+check "version 0.4.1" '[ "$(jq -r .version "$PJ")" = 0.4.1 ]'
 check "manifest no longer claims to store nothing" '! grep -qi "stores nothing" "$PJ"'
 check "manifest names where the ring stores" 'grep -q "~/.claude/attently/ring/" "$PJ"'
 check "manifest names what it reads" 'grep -q "today.md" "$PJ" && grep -q "phaseConfigs" "$PJ"'
