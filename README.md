@@ -89,7 +89,8 @@ marker is optional: waiting and done come from cmux's own agent events. Only
 `✋ … · blocks: DC` escalates a peripheral session to DC's layer.
 
 The `ring` sidebar shows areas, then their Claude tabs: focus expanded, secondary one line,
-background collapsed per area (`○ N parked · M waiting`). Tap a tab to focus it.
+background collapsed per area (`○ N parked · M waiting`). Tap a tab to focus it. It reads the
+painted tab titles, so a session started before the plugin was installed is not listed.
 
 ### Rituals arrive when you do
 

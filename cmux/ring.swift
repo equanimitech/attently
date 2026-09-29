@@ -5,10 +5,13 @@
 // While a day-phase ritual waits for you, one ritual row sits on top; nothing opens until you
 // tap it.
 //
-// Reads only live cmux state. The attently hooks are the bridge: a Claude tab's title opens
-// with its layer glyph (◉ focus, ◎ secondary, ○ background) and a workspace description with
-// its area rollup ("◉ DC · 2 waiting on you"). Working / waiting / idle is cmux's own agent status.
-// 🔊 / 🔉 are still read: tabs painted before 0.4.1 keep them until their session's next turn.
+// Reads only live cmux state, and only tab titles and workspace descriptions: cmux's `agents`
+// field is empty on the builds we run, so the attently hooks' painting is the whole bridge.
+// A ring tab's title opens with its layer glyph (◉ focus, ◎ secondary, ○ background) and its
+// state glyph (✋ waiting on you, … working, ✓ idle), e.g. "○✋ Claude Code"; a workspace
+// description opens with its area rollup ("◉ DC · 2 waiting on you"). A tab with no ring glyph
+// is not in the ring (sessions started before the plugin was installed stay unpainted).
+// 🔊 / 🔉 / 🔇 and ⏸ are still read: tabs painted before 0.4.1 keep them until their next turn.
 
 func desc(_ w) -> String {
   return w.description != nil ? w.description : ""
@@ -19,24 +22,22 @@ func rollup(_ w) -> String {
   return lines.count > 0 ? lines.first : ""
 }
 
+// The ring mark of a tab: "◉✋" of "◉✋ leggia".
+func markOf(_ a) -> String {
+  let parts = a.title.split(separator: " ")
+  return parts.count > 0 ? parts.first : ""
+}
+
+func layerOf(_ a) -> String {
+  let m = markOf(a)
+  if m.hasPrefix("◉") || m.hasPrefix("🔊") { return "focus" }
+  if m.hasPrefix("◎") || m.hasPrefix("🔉") { return "secondary" }
+  if m.hasPrefix("○") || m.hasPrefix("🔇") { return "background" }
+  return ""
+}
+
 func claudes(_ w) -> [Any] {
-  let all = w.agents != nil ? w.agents : []
-  return all.filter { $0.kind == "claude" && $0.status != "ended" }
-}
-
-func titleOf(_ w, _ a) -> String {
-  let ts = w.tabs.filter { $0.surfaceId == a.surfaceId }
-  if ts.count > 0 { return ts.first.title }
-  return a.title != nil ? a.title : a.name
-}
-
-func layerOf(_ w, _ a) -> String {
-  let t = titleOf(w, a)
-  if t.hasPrefix("◉") { return "focus" }
-  if t.hasPrefix("🔊") { return "focus" }
-  if t.hasPrefix("◎") { return "secondary" }
-  if t.hasPrefix("🔉") { return "secondary" }
-  return "background"
+  return w.tabs.filter { layerOf($0) != "" }
 }
 
 func areaRank(_ w) -> Int {
@@ -49,12 +50,12 @@ func areaRank(_ w) -> Int {
 }
 
 func waiting(_ a) -> Bool {
-  return a.status == "needs_input"
+  return markOf(a).contains("✋") || markOf(a).contains("⏸")
 }
 
 func stateText(_ a) -> String {
-  if a.status == "needs_input" { return "✋ waiting on you" }
-  if a.status == "working" { return "… working" }
+  if waiting(a) { return "✋ waiting on you" }
+  if markOf(a).contains("…") { return "… working" }
   return "✓ idle"
 }
 
@@ -79,7 +80,7 @@ func focusRow(_ w, _ a) -> some View {
     HStack(alignment: .top, spacing: 7) {
       Capsule().frame(width: 3, height: 30).foregroundColor("#3B82F6")
       VStack(alignment: .leading, spacing: 2) {
-        Text(titleOf(w, a)).font(.system(size: 12)).fontWeight(.semibold).lineLimit(1).truncationMode(.tail)
+        Text(a.title).font(.system(size: 12)).fontWeight(.semibold).lineLimit(1).truncationMode(.tail)
         Text(stateText(a))
           .font(.system(size: 11))
           .foregroundColor(waiting(a) ? "#3B82F6" : .secondary)
@@ -99,7 +100,7 @@ func secondaryRow(_ w, _ a) -> some View {
   }) {
     HStack(spacing: 6) {
       Text(waiting(a) ? "✋" : "·").font(.system(size: 10)).foregroundColor("#8B9DC3")
-      Text(titleOf(w, a)).font(.system(size: 11)).foregroundColor(.secondary).lineLimit(1).truncationMode(.tail)
+      Text(a.title).font(.system(size: 11)).foregroundColor(.secondary).lineLimit(1).truncationMode(.tail)
       Spacer()
     }
     .padding(3)
@@ -108,9 +109,9 @@ func secondaryRow(_ w, _ a) -> some View {
 
 func area(_ w) -> some View {
   let tabs = claudes(w)
-  let focus = tabs.filter { layerOf(w, $0) == "focus" }
-  let secondary = tabs.filter { layerOf(w, $0) == "secondary" }
-  let background = tabs.filter { layerOf(w, $0) == "background" }
+  let focus = tabs.filter { layerOf($0) == "focus" }
+  let secondary = tabs.filter { layerOf($0) == "secondary" }
+  let background = tabs.filter { layerOf($0) == "background" }
   let backgroundWaiting = background.filter { waiting($0) }
   return VStack(alignment: .leading, spacing: 3) {
     Button(action: { cmux("workspace.select", workspace_id: w.id) }) {
@@ -128,13 +129,13 @@ func area(_ w) -> some View {
     if background.count > 0 {
       Menu("○ \(background.count - backgroundWaiting.count) parked · \(backgroundWaiting.count) waiting") {
         ForEach(backgroundWaiting) { a in
-          Button("✋ \(titleOf(w, a))") {
+          Button("✋ \(a.title)") {
             cmux("workspace.select", workspace_id: w.id)
             cmux("surface.focus", surface_id: a.surfaceId)
           }
         }
         ForEach(background.filter { !waiting($0) }) { a in
-          Button(titleOf(w, a)) {
+          Button(a.title) {
             cmux("workspace.select", workspace_id: w.id)
             cmux("surface.focus", surface_id: a.surfaceId)
           }

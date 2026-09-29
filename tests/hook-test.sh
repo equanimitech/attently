@@ -428,11 +428,11 @@ echo ""
 echo "Ring sidebar + templates:"
 SB="$ROOT/cmux/ring.swift"
 check "ring.swift exists" '[ -f "$SB" ]'
-check "tree joins agents to tabs by surfaceId" 'grep -q "\$0.surfaceId == a.surfaceId" "$SB"'
+check "rows come from painted tab titles, not w.agents" 'grep -q "w.tabs.filter { layerOf(\$0) != \"\" }" "$SB" && ! grep -q "\.agents" "$SB"'
 check "layer from the tab title glyph" 'grep -q "hasPrefix(\"◉\")" "$SB" && grep -q "hasPrefix(\"◎\")" "$SB"'
 check "sidebar still reads tabs painted before 0.4.1" 'grep -q "hasPrefix(\"🔊\")" "$SB" && grep -q "hasPrefix(\"🔉\")" "$SB"'
-check "sidebar shows only the new glyphs" '! grep -v hasPrefix "$SB" | grep -v "^//" | grep -qE "🔊|🔉|🔇|⏸"'
-check "state from cmux agent status" 'grep -q "needs_input" "$SB"'
+check "sidebar shows only the new glyphs" '! grep -vE "hasPrefix|contains\(" "$SB" | grep -v "^//" | grep -qE "🔊|🔉|🔇|⏸"'
+check "state from the title glyph, legacy ⏸ included" 'grep -q "contains(\"✋\") || markOf(a).contains(\"⏸\")" "$SB"'
 check "tap focuses the tab" 'grep -q "cmux(\"surface.focus\", surface_id: a.surfaceId)" "$SB"'
 check "background collapses per area" 'grep -q "parked · " "$SB"'
 check "ritual row opens the ritual on tap" 'grep -q "cmux(\"workspace.create\", title: \"Ritual\"" "$SB"'
