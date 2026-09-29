@@ -592,7 +592,7 @@ echo ""
 
 echo "Manifest honesty:"
 PJ="$ROOT/.claude-plugin/plugin.json"
-check "version 0.4.1" '[ "$(jq -r .version "$PJ")" = 0.4.1 ]'
+check "version 0.4.2" '[ "$(jq -r .version "$PJ")" = 0.4.2 ]'
 check "manifest no longer claims to store nothing" '! grep -qi "stores nothing" "$PJ"'
 check "manifest names where the ring stores" 'grep -q "~/.claude/attently/ring/" "$PJ"'
 check "manifest names what it reads" 'grep -q "today.md" "$PJ" && grep -q "phaseConfigs" "$PJ" && grep -q "areas.md" "$PJ" && grep -q "ai-title" "$PJ"'
