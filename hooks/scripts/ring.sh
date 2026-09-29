@@ -9,10 +9,12 @@
 #
 # Store (all under $ATTENTLY_HOME, default ~/.claude/attently):
 #   ring/sessions/<session>.json    one card per live Claude session (layer, state, tab title)
-#   ring/workspaces/<id>.json       the workspace description the reader had before painting
+#   ring/workspaces/<id>.json       the workspace description the reader had before painting,
+#                                   and the workspace title the ring set (to give back)
 #   rituals.log                     "<day> <PHASE> offered|done [workspace]", one line per step
 #   quiet                           present while midday quiet is on
-# Read, never written: today.md (priorities) and ~/.zenborg/phaseConfigs.json (phase windows).
+# Read, never written: today.md (priorities), areas.md (folder -> area name),
+# ~/.zenborg/phaseConfigs.json (phase windows), and the ai-title lines of each transcript.
 
 ATTENTLY_HOME="${ATTENTLY_HOME:-$HOME/.claude/attently}"
 ATTENTLY_PHASES="${ATTENTLY_PHASES:-$HOME/.zenborg/phaseConfigs.json}"
@@ -183,12 +185,41 @@ ring_title_base() {
     ring_strip_ours "$1" | sed -E 's/^(✳|[⠀-⣿])[[:space:]]*//'
 }
 
-# Is this the title Claude set itself (✳ topic, braille spinner, "claude", a path), rather than
-# a name the reader gave the tab? cmux exposes no custom-name flag, so this is a heuristic.
+# Is this the title Claude set itself (✳ topic, braille spinner, "claude", "Claude Code", a
+# path), rather than a name the reader gave the tab? cmux exposes no custom-name flag, so this
+# is a heuristic.
 # ponytail: prefix sniffing; switch to a cmux custom-title field if one ships.
 ring_is_process_title() {
-    case "$1" in "" | "✳"* | claude | Claude | */*) return 0 ;; esac
+    case "$1" in "" | "✳"* | claude | Claude | "Claude Code" | */*) return 0 ;; esac
     printf '%s' "$1" | LC_ALL=en_US.UTF-8 grep -q '^[⠀-⣿]'
+}
+
+# The area name areas.md gives a directory, or nothing. $1 areas.md, $2 cwd, $3 home.
+# Lines are "<folder> <label>"; # comments and blank lines are skipped; ~ is $3; the first
+# folder that is cwd or a parent of it wins. A one-word label (an emoji) gets the project
+# folder, the first segment below the folder, appended; a longer label is used as is.
+# ponytail: folders cannot contain spaces.
+ring_area_name() {
+    printf '%s\n' "$1" | awk -v cwd="$2" -v home="$3" '
+        /^[ \t]*(#|$)/ { next }
+        {
+            dir = $1
+            if (dir == "~") dir = home; else if (substr(dir, 1, 2) == "~/") dir = home substr(dir, 2)
+            sub(/\/+$/, "", dir)
+            label = $0; sub(/^[ \t]*[^ \t]+[ \t]*/, "", label); sub(/[ \t]+$/, "", label)
+            if (label == "") next
+            if (cwd == dir) { print label; exit }
+            if (index(cwd, dir "/") != 1) next
+            if (label !~ /[ \t]/) { rest = substr(cwd, length(dir) + 2); sub(/\/.*/, "", rest); label = label " " rest }
+            print label; exit
+        }'
+}
+
+# Has the reader left this workspace unnamed? As for tabs there is no custom-name flag: an
+# empty or process title, or one of its own tab titles (cmux shows the focused tab's), is not
+# the reader's. $1 workspace title, $2 its tab titles, one per line.
+ring_ws_unnamed() {
+    ring_is_process_title "$1" || printf '%s\n' "$2" | grep -qxF -- "$1"
 }
 
 # Workspace rollup "◉ DC · 3 waiting on you".
@@ -376,6 +407,7 @@ ring_cards() {
 
 ring_quiet() { [ -f "$ATTENTLY_HOME/quiet" ] && printf 'quiet'; }
 ring_today() { cat "$ATTENTLY_HOME/today.md" 2>/dev/null; }
+ring_areas() { cat "$ATTENTLY_HOME/areas.md" 2>/dev/null; }
 ring_log() { cat "$ATTENTLY_HOME/rituals.log" 2>/dev/null; }
 ring_log_add() { mkdir -p "$ATTENTLY_HOME" && printf '%s\n' "$*" >>"$ATTENTLY_HOME/rituals.log"; }
 
@@ -437,7 +469,7 @@ ring_workspace_of() {
 # Paint one session's tab (title, order) and its workspace description.
 ring_paint() {
     local session="$1" card tree surface ws quiet layer state cur last base user_named orig new \
-        painted args ws_title
+        painted args ws_title ai
     card=$(ring_card "$session")
     surface=$(jq -r '.surface // empty' <<<"$card")
     [ -n "$surface" ] || return 0
@@ -465,6 +497,15 @@ ring_paint() {
         base=$(ring_title_base "$cur")
         ring_is_process_title "$(ring_strip_ours "$cur")" || user_named=true
     fi
+    # A base that is a process title ("Claude Code", which older cards stored as a reader
+    # name) was never the reader's.
+    ring_is_process_title "$base" && user_named=false
+    # Once renamed, the tab no longer follows Claude's title, so Claude's own topic comes from
+    # the transcript instead. Names the reader gave are never touched.
+    if [ "$user_named" = false ]; then
+        ai=$(ring_ai_title "$(jq -r '.transcript // empty' <<<"$card")")
+        [ -n "$ai" ] && base=$ai
+    fi
     [ -n "$base" ] || base=$(jq -r '.cwd // "" | split("/") | last' <<<"$card")
     new=$(ring_tab_title "$layer" "$state" "$base")
     [ "$new" = "$cur" ] || ring_cmux rename-tab --workspace "$ws" --surface "$surface" "$new" >/dev/null
@@ -480,7 +521,7 @@ ring_paint() {
         --arg orig "$orig" --argjson un "$user_named" --arg pl "$layer" \
         '{workspace: $ws, ws_title: $t, last_title: $last, base: $base, orig_title: $orig,
           user_named: $un, painted_layer: $pl}')"
-    ring_paint_workspace "$ws" "$tree"
+    ring_paint_workspace "$ws" "$tree" "$(jq -r '.cwd // empty' <<<"$card")"
 }
 
 # "surface layer" lines for the pane holding $2, in tab order.
@@ -491,16 +532,22 @@ ring_pane_lines() {
         | first | .surfaces[]? | "\(.id) \($l[.id] // "-")"' <<<"$1"
 }
 
-# The workspace description: rollup line over the reader's own text. With no ring session
-# left in the workspace, the reader's description comes back as it was.
+# The workspace description: rollup line over the reader's own text. The workspace title:
+# the area areas.md gives $3 (the painting session's cwd), set once and only over a title the
+# reader did not give. With no ring session left in the workspace, both come back as they were.
 ring_paint_workspace() {
-    local ws="$1" tree="$2" cards cur wsf saved orig last pending label new
+    local ws="$1" tree="$2" cwd="${3:-}" cards node cur title wsf saved orig last named area pending label new
     cards=$(ring_cards | jq --arg w "$ws" '[.[] | select(.workspace == $w)]')
-    cur=$(jq -r --arg w "$ws" '[.. | objects | select(.id? == $w and has("panes"))] | first | .description // ""' <<<"$tree")
+    node=$(jq -c --arg w "$ws" '[.. | objects | select(.id? == $w and has("panes"))] | first // {}' <<<"$tree")
+    cur=$(jq -r '.description // ""' <<<"$node")
+    title=$(jq -r '.title // ""' <<<"$node")
     wsf="$(ring_workspaces_dir)/$ws.json"
     saved=$(cat "$wsf" 2>/dev/null || printf '{}')
     last=$(jq -r '.last // empty' <<<"$saved")
     if [ ! -f "$wsf" ] || [ "$cur" != "$last" ]; then orig=$(ring_user_description "$cur"); else orig=$(jq -r '.orig // ""' <<<"$saved"); fi
+    # The title the ring set, while the workspace still shows it; a reader rename ends it.
+    named=$(jq -r '.title_last // empty' <<<"$saved")
+    [ "$title" = "$named" ] || named=""
 
     if [ "$(jq length <<<"$cards")" -eq 0 ]; then
         [ -f "$wsf" ] || return 0
@@ -509,6 +556,8 @@ ring_paint_workspace() {
         else
             ring_cmux workspace-action --action clear-description --workspace "$ws" >/dev/null
         fi
+        # The ring only names an unnamed workspace, so clearing gives back cmux's own title.
+        [ -n "$named" ] && ring_cmux workspace-action --action clear-name --workspace "$ws" >/dev/null
         rm -f "$wsf"
         return 0
     fi
@@ -518,8 +567,19 @@ ring_paint_workspace() {
     [ -n "$pending" ] && [ "${pending#* }" = "$ws" ] && label=$(ring_ritual_label "${pending%% *}")
     new=$(ring_description "$(ring_rollup "$cards" "$(ring_quiet)" "$label")" "$orig")
     [ "$new" = "$cur" ] || ring_cmux workspace-action --action set-description --workspace "$ws" --description "$new" >/dev/null
+
+    # Named once: another session, in another folder, never renames it back and forth.
+    if [ -z "$named" ] && [ -n "$cwd" ]; then
+        area=$(ring_area_name "$(ring_areas)" "$cwd" "$HOME")
+        if [ -n "$area" ] && ring_ws_unnamed "$title" "$(jq -r '.panes[]?.surfaces[]?.title // empty' <<<"$node")"; then
+            ring_cmux workspace rename "$ws" --title "$area" >/dev/null
+            named=$area
+        fi
+    fi
     mkdir -p "$(ring_workspaces_dir)" &&
-        jq -n --arg orig "$orig" --arg last "$new" '{orig: $orig, last: $last}' >"$wsf.tmp.$$" && mv -f "$wsf.tmp.$$" "$wsf"
+        jq -n --arg orig "$orig" --arg last "$new" --arg named "$named" \
+            '{orig: $orig, last: $last} + (if $named != "" then {title_last: $named} else {} end)' \
+            >"$wsf.tmp.$$" && mv -f "$wsf.tmp.$$" "$wsf"
 }
 
 ring_paint_all() {
@@ -561,11 +621,12 @@ ring_prompt() {
     [ -n "$session" ] || return 0
     card=$(ring_card "$session")
     ring_card_merge "$session" "$(jq -n --arg s "$session" --arg cwd "$(jq -r '.cwd // empty' <<<"$payload")" \
+        --arg tp "$(jq -r '.transcript_path // empty' <<<"$payload")" \
         --arg sf "${CMUX_SURFACE_ID:-$(jq -r '.surface // empty' <<<"$card")}" \
         --arg ws "${CMUX_WORKSPACE_ID:-$(jq -r '.workspace // empty' <<<"$card")}" \
         --arg st "$(ring_next_state "$(jq -r '.state // empty' <<<"$card")" prompt)" \
         --arg layer "$(jq -r '.layer // "background"' <<<"$card")" --argjson ts "$(date +%s)" \
-        '{session: $s, cwd: $cwd, surface: $sf, workspace: $ws, state: $st, layer: $layer, ts: $ts}')" || return 0
+        '{session: $s, cwd: $cwd, transcript: $tp, surface: $sf, workspace: $ws, state: $st, layer: $layer, ts: $ts}')" || return 0
 
     was_quiet=$(ring_quiet)
     rm -f "$ATTENTLY_HOME/quiet"
@@ -596,12 +657,13 @@ ring_ritual_on_prompt() {
 
 # Stop: classify the session (sticky), record its turn-end state, repaint.
 ring_stop() {
-    local payload="$1" session cwd msg marker branch blocks today hash card old_layer cls layer key
+    local payload="$1" session cwd tp msg marker branch blocks today hash card old_layer cls layer key
     session=$(ring_session_id "$payload")
     [ -n "$session" ] || return 0
     cwd=$(jq -r '.cwd // empty' <<<"$payload")
+    tp=$(jq -r '.transcript_path // empty' <<<"$payload")
     msg=$(jq -r '.last_assistant_message // empty' <<<"$payload")
-    [ -n "$msg" ] || msg=$(ring_transcript_text "$(jq -r '.transcript_path // empty' <<<"$payload")")
+    [ -n "$msg" ] || msg=$(ring_transcript_text "$tp")
 
     marker=$(ring_marker "$msg")
     branch=$(ring_bounded 2 git -C "${cwd:-.}" rev-parse --abbrev-ref HEAD 2>/dev/null || true)
@@ -619,12 +681,12 @@ ring_stop() {
         key=$(jq -r '.key // empty' <<<"$card")
     fi
 
-    ring_card_merge "$session" "$(jq -n --arg s "$session" --arg cwd "$cwd" --arg branch "$branch" \
+    ring_card_merge "$session" "$(jq -n --arg s "$session" --arg cwd "$cwd" --arg tp "$tp" --arg branch "$branch" \
         --arg marker "$marker" --arg blocks "$blocks" --arg layer "$layer" --arg key "$key" --arg hash "$hash" \
         --arg st "$(ring_next_state "$(jq -r '.state // empty' <<<"$card")" "stop:$(ring_marker_state "$marker")")" \
         --arg sf "${CMUX_SURFACE_ID:-$(jq -r '.surface // empty' <<<"$card")}" \
         --arg ws "${CMUX_WORKSPACE_ID:-$(jq -r '.workspace // empty' <<<"$card")}" --argjson ts "$(date +%s)" \
-        '{session: $s, cwd: $cwd, branch: $branch, marker: $marker, blocks: $blocks, layer: $layer,
+        '{session: $s, cwd: $cwd, transcript: $tp, branch: $branch, marker: $marker, blocks: $blocks, layer: $layer,
           key: $key, today_hash: $hash, state: $st, surface: $sf, workspace: $ws, ts: $ts}')" || return 0
 
     ring_background ring_paint "$session"
@@ -711,4 +773,14 @@ ring_transcript_text() {
     [ -f "$1" ] || return 0
     tail -n 50 "$1" | jq -rs '[.[] | select(.type == "assistant") | .message.content[]?
         | select(.type == "text") | .text] | last // empty' 2>/dev/null
+}
+
+# Claude's own topic for the session: the last {"type":"ai-title","aiTitle":…} line of its
+# transcript (Claude Code rewrites it as the topic moves). grep finds those lines without
+# parsing a transcript of several MB; jq decodes only them, escapes included.
+ring_ai_title() {
+    [ -f "$1" ] || return 0
+    LC_ALL=C grep -F '"ai-title"' "$1" 2>/dev/null |
+        jq -rR 'fromjson? | select(.type == "ai-title") | .aiTitle | strings
+            | gsub("[[:cntrl:]]+"; " ") | gsub("^ +| +$"; "") | select(. != "")' 2>/dev/null | tail -n 1
 }

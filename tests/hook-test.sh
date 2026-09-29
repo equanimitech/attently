@@ -189,6 +189,7 @@ check "strip a prefix painted before 0.4.1" '[ "$(ring_strip_ours "🔊⏸ build
 check "title base drops Claude ✳" '[ "$(ring_title_base "◉… ✳ Fix tests")" = "Fix tests" ]'
 check "process titles recognised" 'ring_is_process_title "✳ Fix tests" && ring_is_process_title "⠂ Fix" && ring_is_process_title ""'
 check "a name the reader gave is not a process title" '! ring_is_process_title "build logs"'
+check "a bare \"Claude Code\" is a process title" 'ring_is_process_title "Claude Code" && ! ring_is_process_title "Claude Code review"'
 cards='[{"layer":"focus","key":"DC","state":"waiting"},{"layer":"background","state":"waiting"},{"layer":"secondary","key":"RB","state":"done"}]'
 check "rollup" '[ "$(ring_rollup "$cards" "" "")" = "◉ DC · 2 waiting on you" ]'
 check "rollup, quiet" '[ "$(ring_rollup "$cards" quiet "")" = "○ · 2 waiting on you" ]'
@@ -209,6 +210,40 @@ check "waiting line" '[ "$(ring_waiting_line "$wl")" = "✋ 1 waiting on you: le
 check "waiting line, none" '[ "$(ring_waiting_line "[]")" = "Nothing waits on you." ]'
 oi='[{"state":"waiting","base":"leggia","ws_title":"DC","marker":"✋ ship?"},{"state":"done","base":"x","ws_title":"DC"}]'
 check "open items per area" '[ "$(ring_open_items "$oi")" = "DC: ✋ leggia (✋ ship?)" ]'
+
+echo ""
+
+# --- ring: names (ai-title, areas.md) ---
+
+echo "Ring names (pure):"
+TR=$(mktemp)
+printf '%s\n' \
+  '{"type":"ai-title","aiTitle":"Old topic","sessionId":"s"}' \
+  '{"type":"ai-title","aiTitle":"Fix \"quoted\" parser","sessionId":"s"}' \
+  '{"type":"user","message":{"content":"{\"type\":\"ai-title\",\"aiTitle\":\"decoy\"}"}}' \
+  '{"type":"assistant","message":{"content":[{"type":"text","text":"done"}]}}' > "$TR"
+check "ai-title: the last one wins, escaped quotes decoded" '[ "$(ring_ai_title "$TR")" = "Fix \"quoted\" parser" ]'
+printf '%s\n' '{"type":"user","message":{"content":"hi"}}' > "$TR"
+check "ai-title: none in the transcript, or no transcript -> nothing" '[ -z "$(ring_ai_title "$TR")" ] && [ -z "$(ring_ai_title /nonexistent)" ]'
+rm -f "$TR"
+areas="# folder → zenborg area; first match wins.
+
+~/Developer/themia         ⚖️ Themia
+~/Developer/equanimitech   ≃
+~/Developer/equanimitech/x X shadowed by the line above
+/opt/work/  W"
+H=/Users/r
+check "area: one-word label + the project folder" '[ "$(ring_area_name "$areas" $H/Developer/equanimitech/attently/.claude/worktrees/ring $H)" = "≃ attently" ]'
+check "area: cwd is the folder -> the label alone" '[ "$(ring_area_name "$areas" $H/Developer/equanimitech $H)" = "≃" ]'
+check "area: a multi-word label is used as is" '[ "$(ring_area_name "$areas" $H/Developer/themia/minerva/apps $H)" = "⚖️ Themia" ]'
+check "area: no match -> nothing" '[ -z "$(ring_area_name "$areas" $H/learning/saperene $H)" ]'
+check "area: ~ is the home given, not any home" '[ -z "$(ring_area_name "$areas" /Users/x/Developer/themia $H)" ]'
+check "area: path boundary, themia2 is not themia" '[ -z "$(ring_area_name "$areas" $H/Developer/themia2/x $H)" ]'
+check "area: first match wins" '[ "$(ring_area_name "$areas" $H/Developer/equanimitech/x/y $H)" = "≃ x" ]'
+check "area: absolute folder with a trailing slash" '[ "$(ring_area_name "$areas" /opt/work/site/src $H)" = "W site" ]'
+check "area: no areas.md -> nothing" '[ -z "$(ring_area_name "" $H/Developer/themia $H)" ]'
+check "workspace unnamed: empty, process title, or one of its tab titles" 'ring_ws_unnamed "" "" && ring_ws_unnamed "✳ Claude Code" "x" && ring_ws_unnamed "◉… Fix" "a${nl}◉… Fix"'
+check "workspace named by the reader" '! ring_ws_unnamed "⚖️ Themia" "Filter spec${nl}○… Themia MCP outage" && ! ring_ws_unnamed "≃ Ring" "◉✋ Ring sidebar fix"'
 
 echo ""
 
@@ -252,20 +287,20 @@ CMUX_LOG="$RING_HOME/cmux.log"
 printf '#!/usr/bin/env bash\n[ -n "${FAKE_CMUX_SLEEP:-}" ] && sleep "$FAKE_CMUX_SLEEP"\n(IFS="|"; printf "%%s\\n" "$*") >> "%s"\n[ "$1" = tree ] && cat "%s" 2>/dev/null\nexit 0\n' \
   "$CMUX_LOG" "$RING_HOME/tree.json" > "$RING_HOME/cmux"
 chmod +x "$RING_HOME/cmux"
-tree() {  # $1 description, $2.. "surface|title" tabs of workspace ws-1 (one pane)
+tree() {  # $1 description, $2.. "surface|title" tabs of workspace ws-1 (one pane); title $WS_TITLE
   local d="$1"; shift
   python3 -c 'import json,sys
-d=sys.argv[1]; tabs=[t.split("|",1) for t in sys.argv[2:]]
-print(json.dumps({"windows":[{"workspaces":[{"id":"ws-1","title":"DC area","description":d or None,
-  "panes":[{"surfaces":[{"id":s,"title":t} for s,t in tabs]}]}]}]}))' "$d" "$@" > "$RING_HOME/tree.json"
+w=sys.argv[1]; d=sys.argv[2]; tabs=[t.split("|",1) for t in sys.argv[3:]]
+print(json.dumps({"windows":[{"workspaces":[{"id":"ws-1","title":w,"description":d or None,
+  "panes":[{"surfaces":[{"id":s,"title":t} for s,t in tabs]}]}]}]}))' "${WS_TITLE:-DC area}" "$d" "$@" > "$RING_HOME/tree.json"
 }
 hook() {  # $1 event, then env assignments; payload on stdin
   local ev="$1"; shift
   env ATTENTLY_HOME="$RING_HOME" ATTENTLY_CMUX="$RING_HOME/cmux" ATTENTLY_RING_SYNC=1 \
     ATTENTLY_PHASES=/nonexistent ATTENTLY_HOUR=5 CLAUDE_PLUGIN_ROOT="$ROOT" "$@" bash "$SCRIPT" hook "$ev"
 }
-payload() {  # session cwd message [prompt]
-  python3 -c 'import json,sys; print(json.dumps({"session_id": sys.argv[1], "cwd": sys.argv[2], "transcript_path": "/nonexistent", "last_assistant_message": sys.argv[3], "prompt": sys.argv[4] if len(sys.argv) > 4 else ""}))' "$@"
+payload() {  # session cwd message [prompt] [transcript]
+  python3 -c 'import json,sys; print(json.dumps({"session_id": sys.argv[1], "cwd": sys.argv[2], "transcript_path": sys.argv[5] if len(sys.argv) > 5 else "/nonexistent", "last_assistant_message": sys.argv[3], "prompt": sys.argv[4] if len(sys.argv) > 4 else ""}))' "$@"
 }
 IN_CMUX=(CMUX_WORKSPACE_ID=ws-1 CMUX_SURFACE_ID=sf-1)
 card() { cat "$RING_HOME/ring/sessions/$1.json"; }
@@ -421,6 +456,63 @@ calls=$(cat "$CMUX_LOG")
 check "restore: a 🔊⏸ tab gets Claude's own title back" '[[ "$calls" == *"tab-action|--action|clear-name|--workspace|ws-1|--tab|sf-1"* ]]'
 check "restore: a 🔊 rollup gives the reader description back" '[[ "$calls" == *"set-description|--workspace|ws-1|--description|my notes" ]] && [ ! -f "$RING_HOME/ring/sessions/s5.json" ]'
 
+echo "Ring names (hooks):"
+rm -f "$RING_HOME"/ring/sessions/*.json "$RING_HOME"/ring/workspaces/*.json
+TR="$RING_HOME/transcript.jsonl"
+printf '%s\n' '{"type":"ai-title","aiTitle":"Ring sidebar not working","sessionId":"s6"}' > "$TR"
+tree "" "sf-1|✳ Claude Code"
+: > "$CMUX_LOG"
+payload s6 /tmp/nowhere "✓ x" "" "$TR" | hook stop "${IN_CMUX[@]}"
+check "tab named from Claude's ai-title, not \"Claude Code\"" '[[ "$(cat "$CMUX_LOG")" == *"rename-tab|--workspace|ws-1|--surface|sf-1|○✓ Ring sidebar not working"* ]] && card s6 | jq -e ".user_named == false"'
+tree "" "sf-1|○✓ Ring sidebar not working"
+printf '%s\n' '{"type":"ai-title","aiTitle":"Area names","sessionId":"s6"}' >> "$TR"
+: > "$CMUX_LOG"
+payload s6 /tmp/nowhere "✓ x" "" "$TR" | hook stop "${IN_CMUX[@]}"
+check "Claude retitles: the tab follows the latest ai-title" '[[ "$(cat "$CMUX_LOG")" == *"sf-1|○✓ Area names"* ]]'
+tree "" "sf-1|○… Themia MCP outage"
+: > "$CMUX_LOG"
+payload s6 /tmp/nowhere "✓ x" "" "$TR" | hook stop "${IN_CMUX[@]}"
+check "a reader rename (glyphs kept) wins over the ai-title" 'card s6 | jq -e ".user_named == true and .base == \"Themia MCP outage\"" && [[ "$(cat "$CMUX_LOG")" == *"sf-1|○✓ Themia MCP outage"* ]]'
+# A card from an earlier build, which took a bare "Claude Code" title for a reader name.
+card s6 | jq '.base = "Claude Code" | .user_named = true | .last_title = "○✓ Claude Code"' > "$RING_HOME/c.json" &&
+  mv "$RING_HOME/c.json" "$RING_HOME/ring/sessions/s6.json"
+tree "" "sf-1|○✓ Claude Code"
+payload s6 /tmp/nowhere "✓ x" "" "$TR" | hook stop "${IN_CMUX[@]}"
+check "a stored \"Claude Code\" reader name gives way to the ai-title" 'card s6 | jq -e ".user_named == false and .base == \"Area names\""'
+rm -f "$RING_HOME"/ring/sessions/*.json "$RING_HOME"/ring/workspaces/*.json
+
+printf '# folder → zenborg area; first match wins.\n%s/dev/themia   ⚖️ Themia\n~/eq   ≃\n' "$RING_HOME" > "$RING_HOME/areas.md"
+at() { hook stop CMUX_WORKSPACE_ID=ws-1 CMUX_SURFACE_ID="$1" HOME="$RING_HOME"; }  # stop in surface $1
+ws_renames() { grep -c "^workspace|rename" "$CMUX_LOG"; }
+: > "$CMUX_LOG"
+tree "" "sf-1|✳ Claude Code"  # workspace title "DC area": the reader's
+payload s7 "$RING_HOME/eq/attently/src" "✓ x" | at sf-1
+check "a workspace the reader named is left alone" '[ "$(ws_renames)" = 0 ]'
+WS_TITLE="○✓ Claude Code" tree "" "sf-1|○✓ Claude Code"
+payload s9 /tmp/nowhere "✓ x" | at sf-1
+check "a folder areas.md does not map: the title is left alone" '[ "$(ws_renames)" = 0 ]'
+rm -f "$RING_HOME/ring/sessions/s9.json"
+payload s7 "$RING_HOME/eq/attently/src" "✓ x" | at sf-1
+check "an unnamed workspace (title = its tab's) takes its area + project" '[[ "$(cat "$CMUX_LOG")" == *"workspace|rename|ws-1|--title|≃ attently"* ]]'
+check "the workspace state keeps the title it set" 'jq -e ".title_last == \"≃ attently\"" "$RING_HOME/ring/workspaces/ws-1.json"'
+WS_TITLE="≃ attently" tree "" "sf-1|○✓ Claude Code" "sf-2|✳ Claude Code"
+: > "$CMUX_LOG"
+payload s8 "$RING_HOME/dev/themia/minerva" "✓ x" | at sf-2
+check "another session in another folder: no flap" '[ "$(ws_renames)" = 0 ] && jq -e ".title_last == \"≃ attently\"" "$RING_HOME/ring/workspaces/ws-1.json"'
+payload s8 /tmp/nowhere "" | hook session-end CMUX_WORKSPACE_ID=ws-1 CMUX_SURFACE_ID=sf-2
+: > "$CMUX_LOG"
+payload s7 /tmp/nowhere "" | hook session-end "${IN_CMUX[@]}"
+check "last session out: cmux's own workspace title comes back" '[[ "$(cat "$CMUX_LOG")" == *"workspace-action|--action|clear-name|--workspace|ws-1"* ]]'
+WS_TITLE="○✓ Claude Code" tree "" "sf-1|○✓ Claude Code"
+payload s7 "$RING_HOME/dev/themia/minerva" "✓ x" | at sf-1
+check "a multi-word label names the workspace as is" 'grep -q "^workspace|rename|ws-1|--title|⚖️ Themia$" "$CMUX_LOG"'
+WS_TITLE="my area" tree "" "sf-1|○✓ Claude Code"
+: > "$CMUX_LOG"
+payload s7 "$RING_HOME/eq/attently" "✓ x" | at sf-1
+payload s7 /tmp/nowhere "" | hook session-end "${IN_CMUX[@]}"
+check "a reader rename of the ring's name is kept, even at restore" '[ "$(ws_renames)" = 0 ] && ! grep -q "^workspace-action|--action|clear-name" "$CMUX_LOG"'
+rm -f "$RING_HOME/areas.md"
+
 echo ""
 
 # --- ring: sidebar + cmux config templates + install ---
@@ -503,11 +595,12 @@ PJ="$ROOT/.claude-plugin/plugin.json"
 check "version 0.4.1" '[ "$(jq -r .version "$PJ")" = 0.4.1 ]'
 check "manifest no longer claims to store nothing" '! grep -qi "stores nothing" "$PJ"'
 check "manifest names where the ring stores" 'grep -q "~/.claude/attently/ring/" "$PJ"'
-check "manifest names what it reads" 'grep -q "today.md" "$PJ" && grep -q "phaseConfigs" "$PJ"'
+check "manifest names what it reads" 'grep -q "today.md" "$PJ" && grep -q "phaseConfigs" "$PJ" && grep -q "areas.md" "$PJ" && grep -q "ai-title" "$PJ"'
 check "manifest says it blocks nothing" 'grep -q "Blocks nothing" "$PJ"'
-for read in "today.md" "phaseConfigs.json" "git branch" "cmux tree" "last assistant message"; do
+for read in "today.md" "areas.md" "phaseConfigs.json" "git branch" "cmux tree" "last assistant message" "ai-title"; do
   check "README states it reads: $read" 'grep -q "$read" "$ROOT/README.md"'
 done
+check "README states the ring writes workspace titles" 'grep -q "workspace titles (from \`areas.md\`" "$ROOT/README.md"'
 check "README states what is stored" 'grep -q "ring/sessions/<session>.json" "$ROOT/README.md" && grep -q "rituals.log" "$ROOT/README.md"'
 check "README: selecting the sidebar turns on the custom-sidebar beta" 'grep -q "custom-sidebar beta" "$ROOT/README.md"'
 check "README: nothing is installed into cmux without asking" 'grep -q "install automations" "$ROOT/README.md" && grep -q "install dock" "$ROOT/README.md"'

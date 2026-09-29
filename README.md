@@ -73,6 +73,24 @@ State glyphs: `✋` waiting on you, `…` working, `✓` done. Area rollup: `◉
 above whatever description you had written, which stays and comes back when the last session
 leaves.
 
+The name after the glyphs is Claude's own topic for the session, the `ai-title` it writes into
+its transcript, so it moves with the topic. A tab you rename keeps your name.
+
+Areas get their names from folders. `~/.claude/attently/areas.md`, which you write, maps each
+folder to a zenborg area; the first match wins:
+
+```
+# folder → zenborg area; first match wins. A one-word label (an emoji) gets the project folder appended.
+~/Developer/themia         ⚖️ Themia
+~/Developer/equanimitech   ≃
+```
+
+A session in `~/Developer/equanimitech/attently` names its workspace `≃ attently`; one anywhere
+under `~/Developer/themia` names it `⚖️ Themia`. A folder with no line leaves the title alone.
+The ring names a workspace once, and only one you have not named (its title is empty or just
+follows a tab); your names are never touched, and the ring's comes off when the last session
+leaves.
+
 Priorities live in `~/.claude/attently/today.md`, which you write. One per line, ranked by
 order; terms after the key match the session's git branch, directory and last message, as
 whole words of 3+ characters:
@@ -137,26 +155,30 @@ prefix with `!` (`! attently-ring install sidebar`).
 `claude`, send one prompt that names a `today.md` term, and watch: the tab title gains
 `◉…` then `◉✓`, the workspace description shows the rollup, the pane lists the tab under its
 area, and tapping it focuses the tab. Ask it to use AskUserQuestion and the tab turns `✋`.
-`attently-ring restore` gives every tab and description back; `cmux automation logs` shows
-each firing.
+`attently-ring restore` gives every tab, description and workspace title back;
+`cmux automation logs` shows each firing.
 
 ## What it stores, reads, and blocks
 
 - **Stores**, only inside cmux, under `~/.claude/attently/`:
-  `ring/sessions/<session>.json` (per Claude session: id, directory, git branch, marker line,
-  layer, priority key, state, cmux workspace and surface ids, the tab title it replaced and
-  the one it wrote; deleted at SessionEnd, or after two days),
-  `ring/workspaces/<id>.json` (the description you had, to give back), `rituals.log` (one line
-  per invitation or completed ritual), and `quiet` (present during midday quiet).
-- **Reads**: `~/.claude/attently/today.md` (yours; attently never writes it); zenborg's
-  `~/.zenborg/phaseConfigs.json` (read-only, phase windows); the git branch of the session's
-  directory; the cmux tree (tab titles, workspace descriptions); the last assistant message
-  of each finished turn (from the Stop payload, else the transcript's tail); the text of your
-  prompt, only to see whether it is `/sunrise` or `/sunset`; and cmux's agent event (session,
-  surface, event name) when an automation fires. Nothing else about you.
+  `ring/sessions/<session>.json` (per Claude session: id, directory, transcript path, git
+  branch, marker line, layer, priority key, state, cmux workspace and surface ids, the tab
+  title it replaced and the one it wrote; deleted at SessionEnd, or after two days),
+  `ring/workspaces/<id>.json` (the description you had, to give back, and the workspace title
+  the ring set), `rituals.log` (one line per invitation or completed ritual), and `quiet`
+  (present during midday quiet).
+- **Reads**: `~/.claude/attently/today.md` and `~/.claude/attently/areas.md` (yours; attently
+  never writes them); zenborg's `~/.zenborg/phaseConfigs.json` (read-only, phase windows); the
+  git branch of the session's directory; the cmux tree (tab and workspace titles, workspace
+  descriptions); the last assistant message of each finished turn (from the Stop payload, else
+  the transcript's tail); the transcript's `ai-title` lines (Claude's own topic, found with
+  grep, nothing else of the transcript); the text of your prompt, only to see whether it is
+  `/sunrise` or `/sunset`; and cmux's agent event (session, surface, event name) when an
+  automation fires. Nothing else about you.
 - **Writes to cmux**: Claude tab titles, tab order within a pane (only when a layer changes),
-  workspace descriptions, one notification per day-phase, and -- only when you tap a ritual --
-  a Ritual workspace. It never sends input to a session and never moves focus by itself.
+  workspace descriptions, workspace titles (from `areas.md`, only where you have not named the
+  workspace), one notification per day-phase, and -- only when you tap a ritual -- a Ritual
+  workspace. It never sends input to a session and never moves focus by itself.
 - **Blocks nothing.** It never denies a tool or fails a turn. Every hook exits 0; cmux calls
   run detached and time-boxed.
 - **Depends on** `bash` and `cat` for the contract; `jq`, `perl` and cmux for the ring, which
