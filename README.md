@@ -31,7 +31,8 @@ The session-start hook injects the full depth contract *and* the rendering rules
 session. Inside cmux, prompt / Stop / SessionEnd / Subagent hooks add the ring (below). No CLAUDE.md edits needed. No skill loads required for the rules to take effect.
 
 Skills exist for deep reference only -- edge cases, anti-patterns, worked examples. The ambient
-injection carries everything a session needs to change behavior.
+injection carries everything a session needs to change behavior. The one exception is an
+action: `/sauron`, which settles the decisions waiting across sessions (below).
 
 ## Why a hook, not a skill
 
@@ -131,6 +132,31 @@ tap it (or a Dock control, or `attently-ring ritual <name>`):
 
 Typing `/sunrise` or `/sunset` yourself counts too.
 
+### /sauron: settle what waits on you
+
+With ten sessions each ending on a `✋`, the open decisions sprawl across tabs.
+`skills/sauron/open.sh` opens sauron in its own pinned `👁 Sauron` workspace (or focuses it),
+or run `/sauron` in any tab ("what's waiting on me", "consolidate the ring"). It reads every
+ring card, ranks the open questions by `today.md` then age, and merges the ones about the same
+thing: two tabs asking about merging `#568` become one decision. A question whose tab has
+closed is a **lost** decision, not noise: it shows on the board too.
+
+It then walks you through them one at a time, most important first, answered inline from the
+Feed: answer (yours, or one it drafts from the session's context), close the session
+(`/close-up`), leave it open, or open the tab; a lost one can be resumed in a new tab, captured
+with `/question`, or dropped. A cluster takes one answer, adapted to each session. Nothing is
+typed into another tab until you have approved the exact text, and never into a session that is
+working. A one-screen ledger follows: sent, closed, still open.
+
+Then it stays open, silent, re-reading the ring every 20 seconds, and walks each new or changed
+decision as it lands. One you left open is not asked again until its question changes.
+`/sauron once` stops after the ledger.
+
+Sauron only reads and carries your answers. It edits nothing in other repos and merges nothing
+itself; the session that receives "merge it" does the merging. `skills/sauron/gather.sh` prints
+the open decisions as JSON; `gather.sh --self-test` and `open.sh --self-test` check both scripts
+against fixtures.
+
 ### Enable the ring
 
 Nothing touches your cmux config until you run these. Each install refuses to overwrite a
@@ -187,7 +213,8 @@ area, and tapping it focuses the tab. Ask it to use AskUserQuestion and the tab 
 - **Writes to cmux**: Claude tab titles, tab order within a pane (only when a layer changes),
   workspace descriptions, workspace titles (from `areas.md`, only where you have not named the
   workspace), one notification per day-phase, and -- only when you tap a ritual -- a Ritual
-  workspace. It never sends input to a session and never moves focus by itself.
+  workspace. It never sends input to a session and never moves focus by itself; only
+  `/sauron` types into a tab or resumes a closed session, and only what you approved.
 - **Blocks nothing.** It never denies a tool or fails a turn. Every hook exits 0; cmux calls
   run detached and time-boxed.
 - **Depends on** `bash` and `cat` for the contract; `jq`, `perl` and cmux for the ring, which
@@ -223,6 +250,10 @@ Self-contained. Nothing else to install, and it depends on no other plugin or sk
 | `visual-pitch` | scannable page-level output: hook diagrams, emoji nav, visual-per-section |
 | `linking-the-working` | the click tier: the project wiki and how to link it |
 | `depth-ladder` | five rungs, for when one claim needs several resolutions |
+
+| Skill (action) | Owns |
+|---|---|
+| `sauron` | review, consolidate and close the open decisions across all sessions (`/sauron`) |
 
 `hooks/` carries the session-start contract, the per-turn reminder, and the ring; `contract/` holds their
 text as data -- editable without touching code, and readable by anyone auditing what the plugin
