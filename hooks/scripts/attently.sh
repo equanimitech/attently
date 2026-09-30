@@ -7,8 +7,9 @@
 #
 # SessionStart injects the full ambient ruleset (contract + rendering rules + wiki trigger) as
 # additionalContext so it lands as system context. UserPromptSubmit emits a one-line nudge as
-# raw text. Inside cmux, UserPromptSubmit / Stop / SessionEnd also update the session's ring
-# card (see ring.sh); all cmux work runs detached and bounded, so no hook can stall a turn.
+# raw text. Inside cmux, UserPromptSubmit / Stop / SessionEnd / SubagentStart / SubagentStop
+# also update the session's ring card (see ring.sh); all cmux work runs detached and bounded,
+# so no hook can stall a turn.
 #
 # Always exits 0 as a hook. attently never blocks a turn.
 #
@@ -117,6 +118,8 @@ case "${2:-}" in
     ;;
   stop) ring_hook ring_stop ;;
   session-end) ring_hook ring_end ;;
+  subagent-start) ring_hook ring_agent_start ;;
+  subagent-stop) ring_hook ring_agent_stop ;;
   *) : ;;
 esac
 

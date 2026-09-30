@@ -20,6 +20,9 @@ ATTENTLY_HOME="${ATTENTLY_HOME:-$HOME/.claude/attently}"
 ATTENTLY_PHASES="${ATTENTLY_PHASES:-$HOME/.zenborg/phaseConfigs.json}"
 RING_MARKER_MAX=160
 RING_TERM_MIN=3
+# ponytail: a subagent whose SubagentStop never came (crash, kill) stops counting after 2h; an
+# agent running longer than that reads as finished. Raise it if long agents become the norm.
+RING_AGENT_MAX_AGE=7200
 
 # =============================================================================================
 # Pure: markers
@@ -136,6 +139,7 @@ ring_event_kind() {
             agent.question.requested | agent.approval.requested | agent.plan_review.requested)
             printf 'needs_input' ;;
         agent.hook.Notification) printf 'notification' ;;
+        surface.focused | workspace.selected) printf 'focus' ;;
     esac
 }
 
@@ -154,6 +158,40 @@ ring_next_state() {
     esac
 }
 
+# Subagents: the set of live agent ids on a card, {id: started epoch}. A set, so a duplicate
+# start or a stop of an unknown id changes nothing; ids older than RING_AGENT_MAX_AGE are dropped.
+# $1 start | stop, $2 agent id, $3 now (epoch), $4 card JSON -> the card. A stop is news, so the
+# finished turn under it counts as unseen again.
+ring_agent_card() {
+    jq -c --arg k "$1" --arg id "$2" --argjson now "$3" --argjson max "$RING_AGENT_MAX_AGE" '
+        .agents = ((.agents // {}) | with_entries(select(.value > $now - $max))
+            | if $k == "start" then .[$id] = $now else del(.[$id]) end)
+        | if $k == "stop" then .seen = false else . end' <<<"$4"
+}
+
+# Live subagents on a card. $1 card JSON, $2 now (epoch).
+ring_agent_count() {
+    jq --argjson now "$2" --argjson max "$RING_AGENT_MAX_AGE" \
+        '[.agents // {} | .[] | select(. > $now - $max)] | length' <<<"$1" 2>/dev/null || printf 0
+}
+
+# What the tab shows: waiting always wins, then running subagents, then a finished turn the
+# reader has seen (it goes quiet), else the state itself.
+#   $1 state, $2 live subagents, $3 seen (true|false)
+ring_shown_state() {
+    if [ "$1" = waiting ]; then printf 'waiting'
+    elif [ "${2:-0}" -gt 0 ]; then printf 'agents'
+    elif [ "$1" = done ] && [ "$3" = true ]; then printf 'seen'
+    else printf '%s' "$1"; fi
+}
+
+# Is surface $2 on screen in tree $1: the focused tab of its pane, in the selected workspace?
+# ponytail: ignores which window is key; a tab left focused in a background window counts as seen.
+ring_visible() {
+    jq -e --arg s "$2" '[.. | objects | select(has("panes") and .selected == true)
+        | .panes[]?.surfaces[]? | select(.id == $s and .focused == true)] | length > 0' <<<"$1" >/dev/null 2>&1
+}
+
 # =============================================================================================
 # Pure: how it looks
 # =============================================================================================
@@ -161,8 +199,10 @@ ring_next_state() {
 ring_glyph() {
     case "$1" in focus) printf '◉' ;; secondary) printf '◎' ;; *) printf '○' ;; esac
 }
+# $1 shown state, $2 live subagents. "…2": two subagents still run, whether the turn is over
+# or not. A finished turn the reader has seen has no state glyph at all.
 ring_state_glyph() {
-    case "$1" in waiting) printf '✋' ;; done) printf '✓' ;; working) printf '…' ;; esac
+    case "$1" in waiting) printf '✋' ;; done) printf '✓' ;; working) printf '…' ;; agents) printf '…%s' "$2" ;; esac
 }
 
 # Midday quiet paints every session as background.
@@ -170,27 +210,27 @@ ring_effective_layer() {
     if [ -n "$2" ]; then printf 'background'; else printf '%s' "$1"; fi
 }
 
-# "<layer glyph><state glyph> <base>"
+# "<layer glyph><state glyph> <base>". $2 shown state, $4 live subagents.
 ring_tab_title() {
-    printf '%s%s %s' "$(ring_glyph "$1")" "$(ring_state_glyph "$2")" "$3"
+    printf '%s%s %s' "$(ring_glyph "$1")" "$(ring_state_glyph "$2" "${4:-}")" "$3"
 }
 
 # A title with any ring prefix removed, including the speaker / ⏸ prefixes painted before 0.4.1.
 ring_strip_ours() {
-    printf '%s' "$1" | sed -E 's/^(◉|◎|○|🔊|🔉|🔇)(✋|⏸|✓|…)?[[:space:]]*//'
+    printf '%s' "$1" | sed -E 's/^(◉|◎|○|🔊|🔉|🔇)(✋|⏸|✓|…[0-9]*)?[[:space:]]*//'
 }
 
-# The base a ring title is built on: our prefix and Claude's own ✳ / spinner glyph removed.
+# The base a ring title is built on: our prefix and Claude's own ✳ / ◐◓◑◒ / spinner glyph removed.
 ring_title_base() {
-    ring_strip_ours "$1" | sed -E 's/^(✳|[⠀-⣿])[[:space:]]*//'
+    ring_strip_ours "$1" | sed -E 's/^(✳|◐|◓|◑|◒|[⠀-⣿])[[:space:]]*//'
 }
 
-# Is this the title Claude set itself (✳ topic, braille spinner, "claude", "Claude Code", a
-# path), rather than a name the reader gave the tab? cmux exposes no custom-name flag, so this
-# is a heuristic.
+# Is this the title Claude set itself (✳ or ◐◓◑◒ topic, braille spinner, "claude", "Claude
+# Code", a path), rather than a name the reader gave the tab? cmux exposes no custom-name flag,
+# so this is a heuristic.
 # ponytail: prefix sniffing; switch to a cmux custom-title field if one ships.
 ring_is_process_title() {
-    case "$1" in "" | "✳"* | claude | Claude | "Claude Code" | */*) return 0 ;; esac
+    case "$1" in "" | "✳"* | "◐"* | "◓"* | "◑"* | "◒"* | claude | Claude | "Claude Code" | */*) return 0 ;; esac
     printf '%s' "$1" | LC_ALL=en_US.UTF-8 grep -q '^[⠀-⣿]'
 }
 
@@ -283,9 +323,11 @@ ring_waiting_line() {
           else "✋ \($w | length) waiting on you: " + ($w | map(.base // .cwd // .session) | join(", ")) end' <<<"$1"
 }
 
-# Open items per area, for the sunset ritual. $1 JSON array of cards.
+# Open items per area, for the sunset ritual: waiting, working, or with subagents still running.
+# $1 JSON array of cards.
 ring_open_items() {
-    jq -r 'map(select(.state == "waiting" or .state == "working"))
+    jq -r --argjson max "$RING_AGENT_MAX_AGE" 'map(select(.state == "waiting" or .state == "working"
+            or ([.agents // {} | .[] | select(. > now - $max)] | length) > 0))
         | group_by(.ws_title // "")
         | map("\(.[0].ws_title // "unplaced"): "
               + (map((if .state == "waiting" then "✋ " else "… " end) + (.base // .cwd // .session)
@@ -390,14 +432,28 @@ ring_card_path() { printf '%s/%s.json' "$(ring_sessions_dir)" "$1"; }
 
 ring_card() { cat "$(ring_card_path "$1")" 2>/dev/null || printf '{}'; }
 
-# Merge $2 (JSON object) into card $1, atomically.
-ring_card_merge() {
-    local path tmp
-    path=$(ring_card_path "$1")
+# Replace card $1 with the output of "${@:2}" given the card JSON as its last argument,
+# atomically and under a lock: parallel subagents start in the same instant, and a lost
+# SubagentStop would leave "…1" on the tab.
+# ponytail: mkdir spin lock; after ~1s it proceeds without the lock rather than stall a hook.
+ring_card_update() {
+    local session="$1" path out rc i=0
+    shift
+    path=$(ring_card_path "$session")
     mkdir -p "$(ring_sessions_dir)" || return 1
-    tmp="$path.tmp.$$"
-    jq -s '.[0] * .[1]' <(ring_card "$1") <(printf '%s' "$2") >"$tmp" && mv -f "$tmp" "$path"
+    until mkdir "$path.lock" 2>/dev/null; do
+        i=$((i + 1)); [ "$i" -gt 50 ] && break; sleep 0.02
+    done
+    out=$("$@" "$(ring_card "$session")") && [ -n "$out" ] &&
+        printf '%s\n' "$out" >"$path.tmp.$$" && mv -f "$path.tmp.$$" "$path"
+    rc=$?
+    rmdir "$path.lock" 2>/dev/null
+    return "$rc"
 }
+
+# Merge $2 (JSON object) into card $1.
+ring_card_merge() { ring_card_update "$1" ring_json_merge "$2"; }
+ring_json_merge() { jq -s '.[0] * .[1]' <(printf '%s' "$2") <(printf '%s' "$1"); }
 
 ring_cards() {
     local dir
@@ -469,7 +525,7 @@ ring_workspace_of() {
 # Paint one session's tab (title, order) and its workspace description.
 ring_paint() {
     local session="$1" card tree surface ws quiet layer state cur last base user_named orig new \
-        painted args ws_title ai
+        painted args ws_title ai seen agents
     card=$(ring_card "$session")
     surface=$(jq -r '.surface // empty' <<<"$card")
     [ -n "$surface" ] || return 0
@@ -480,6 +536,10 @@ ring_paint() {
     quiet=$(ring_quiet)
     layer=$(ring_effective_layer "$(jq -r '.layer // "background"' <<<"$card")" "$quiet")
     state=$(jq -r '.state // empty' <<<"$card")
+    seen=$(jq -r '.seen // false' <<<"$card")
+    # A finished turn on screen is seen; switching to it later lands here through ring_event.
+    [ "$state" = done ] && [ "$seen" != true ] && ring_visible "$tree" "$surface" && seen=true
+    agents=$(ring_agent_count "$card" "$(date +%s)")
     cur=$(jq -r --arg s "$surface" '[.. | objects | select(.id? == $s and has("title"))] | first | .title // ""' <<<"$tree")
     ws_title=$(jq -r --arg w "$ws" '[.. | objects | select(.id? == $w and has("panes"))] | first | .title // ""' <<<"$tree")
     last=$(jq -r '.last_title // empty' <<<"$card")
@@ -497,9 +557,9 @@ ring_paint() {
         base=$(ring_title_base "$cur")
         ring_is_process_title "$(ring_strip_ours "$cur")" || user_named=true
     fi
-    # A base that is a process title ("Claude Code", which older cards stored as a reader
-    # name) was never the reader's.
-    ring_is_process_title "$base" && user_named=false
+    # A base that is a process title ("Claude Code", "◑ topic", which older cards stored as a
+    # reader name) was never the reader's.
+    if ring_is_process_title "$base"; then user_named=false; base=$(ring_title_base "$base"); fi
     # Once renamed, the tab no longer follows Claude's title, so Claude's own topic comes from
     # the transcript instead. Names the reader gave are never touched.
     if [ "$user_named" = false ]; then
@@ -507,7 +567,7 @@ ring_paint() {
         [ -n "$ai" ] && base=$ai
     fi
     [ -n "$base" ] || base=$(jq -r '.cwd // "" | split("/") | last' <<<"$card")
-    new=$(ring_tab_title "$layer" "$state" "$base")
+    new=$(ring_tab_title "$layer" "$(ring_shown_state "$state" "$agents" "$seen")" "$base" "$agents")
     [ "$new" = "$cur" ] || ring_cmux rename-tab --workspace "$ws" --surface "$surface" "$new" >/dev/null
 
     painted=$(jq -r '.painted_layer // empty' <<<"$card")
@@ -518,9 +578,9 @@ ring_paint() {
     fi
 
     ring_card_merge "$session" "$(jq -n --arg ws "$ws" --arg t "$ws_title" --arg last "$new" --arg base "$base" \
-        --arg orig "$orig" --argjson un "$user_named" --arg pl "$layer" \
+        --arg orig "$orig" --argjson un "$user_named" --arg pl "$layer" --argjson seen "$seen" \
         '{workspace: $ws, ws_title: $t, last_title: $last, base: $base, orig_title: $orig,
-          user_named: $un, painted_layer: $pl}')"
+          user_named: $un, painted_layer: $pl, seen: $seen}')"
     ring_paint_workspace "$ws" "$tree" "$(jq -r '.cwd // empty' <<<"$card")"
 }
 
@@ -687,12 +747,24 @@ ring_stop() {
         --arg sf "${CMUX_SURFACE_ID:-$(jq -r '.surface // empty' <<<"$card")}" \
         --arg ws "${CMUX_WORKSPACE_ID:-$(jq -r '.workspace // empty' <<<"$card")}" --argjson ts "$(date +%s)" \
         '{session: $s, cwd: $cwd, transcript: $tp, branch: $branch, marker: $marker, blocks: $blocks, layer: $layer,
-          key: $key, today_hash: $hash, state: $st, surface: $sf, workspace: $ws, ts: $ts}')" || return 0
+          key: $key, today_hash: $hash, state: $st, surface: $sf, workspace: $ws, ts: $ts, seen: false}')" || return 0
 
     ring_background ring_paint "$session"
     # Cards of sessions that died without SessionEnd.
     find "$(ring_sessions_dir)" -name '*.json' -mtime +2 -delete 2>/dev/null || true
 }
+
+# SubagentStart / SubagentStop: keep the card's set of live subagents, repaint.
+ring_agent() {
+    local session id
+    session=$(ring_session_id "$1")
+    id=$(jq -r '.agent_id // empty' <<<"$1" 2>/dev/null | tr -cd 'A-Za-z0-9_-')
+    [ -n "$session" ] && [ -n "$id" ] || return 0
+    ring_card_update "$session" ring_agent_card "$2" "$id" "$(date +%s)" || return 0
+    ring_background ring_paint "$session"
+}
+ring_agent_start() { ring_agent "$1" start; }
+ring_agent_stop() { ring_agent "$1" stop; }
 
 # SessionEnd: give the tab and workspace back.
 ring_end() {
@@ -702,12 +774,17 @@ ring_end() {
     ring_background ring_release "$session"
 }
 
-# A cmux automation `run` action: waiting transitions from cmux's own agent events.
+# A cmux automation `run` action: waiting transitions from cmux's own agent events, and focus
+# changes, which may put a finished turn on screen (seen).
 ring_event() {
-    local json="${1:-${CMUX_AUTOMATION_EVENT_JSON:-}}" name kind session card state next
+    local json="${1:-${CMUX_AUTOMATION_EVENT_JSON:-}}" name kind session card state next s
     name=$(jq -r '.name // .event.name // empty' <<<"$json" 2>/dev/null)
     kind=$(ring_event_kind "$name")
     [ -n "$kind" ] || return 0
+    if [ "$kind" = focus ]; then
+        for s in $(ring_focus_sessions "$(ring_cards)" "$json"); do ring_paint "$s"; done
+        return 0
+    fi
     [ "$(jq -r '(.payload // .event.payload).phase // "received"' <<<"$json")" = completed ] && return 0
     session=$(ring_session_of_event "$(jq -r '(.payload // .event.payload).session_id // empty' <<<"$json")")
     [ -n "$session" ] && [ -f "$(ring_card_path "$session")" ] || return 0
@@ -719,6 +796,17 @@ ring_event() {
         --arg sf "$(jq -r '(.payload // .event.payload).surface_id // .surface_id // empty' <<<"$json")" \
         '{state: $st} + (if $sf != "" then {surface: $sf} else {} end)')"
     ring_paint "$session"
+}
+
+# Sessions a focus event may have put on screen: finished, not yet seen, in the event's surface
+# or workspace. $1 JSON array of cards, $2 event JSON.
+ring_focus_sessions() {
+    jq -r --argjson e "$2" '($e.event // $e) as $e
+        | ([$e.surface_id, $e.workspace_id, $e.payload.surface_id?, $e.payload.workspace_id?]
+            | map(strings | ascii_upcase)) as $ids
+        | .[] | select(.state == "done" and (.seen // false) == false)
+        | select([.surface, .workspace] | map(strings | ascii_upcase) | any(. as $x | $ids | index($x)))
+        | .session // empty' <<<"$1" 2>/dev/null
 }
 
 # A cmux notifications.hooks filter: policy JSON on stdin, effects patch on stdout.

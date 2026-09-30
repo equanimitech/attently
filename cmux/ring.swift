@@ -1,14 +1,16 @@
 // attently ring -- your areas, and the Claude tabs inside each, ranked by what deserves you now.
 //
-// Center to periphery. Each workspace is an area. Inside it, focus tabs get a full row,
-// secondary tabs one muted line, background tabs collapse into one menu. Tap a tab to focus it.
+// Center to periphery. Each workspace is an area. Inside it, focus tabs get a full row until
+// you have seen their finished turn, then one muted line like secondary tabs; background tabs
+// collapse into one menu. Tap a tab to focus it.
 // While a day-phase ritual waits for you, one ritual row sits on top; nothing opens until you
 // tap it.
 //
 // Reads only live cmux state, and only tab titles and workspace descriptions: cmux's `agents`
 // field is empty on the builds we run, so the attently hooks' painting is the whole bridge.
 // A ring tab's title opens with its layer glyph (◉ focus, ◎ secondary, ○ background) and its
-// state glyph (✋ waiting on you, … working, ✓ idle), e.g. "○✋ Claude Code"; a workspace
+// state glyph (✋ waiting on you, … working, …2 two subagents still running, ✓ done and not yet
+// seen, none once seen), e.g. "○✋ Claude Code"; a workspace
 // description opens with its area rollup ("◉ DC · 2 waiting on you"). A tab with no ring glyph
 // is not in the ring (sessions started before the plugin was installed stay unpainted).
 // 🔊 / 🔉 / 🔇 and ⏸ are still read: tabs painted before 0.4.1 keep them until their next turn.
@@ -53,10 +55,19 @@ func waiting(_ a) -> Bool {
   return markOf(a).contains("✋") || markOf(a).contains("⏸")
 }
 
+// No state glyph: the reader has seen the finished turn, so the row goes quiet.
+func settled(_ a) -> Bool {
+  let m = markOf(a)
+  return !waiting(a) && !m.contains("…") && !m.contains("✓")
+}
+
+// "◉…2" -> "… 2 agents running".
 func stateText(_ a) -> String {
   if waiting(a) { return "✋ waiting on you" }
+  let n = markOf(a).split(separator: "…")
+  if markOf(a).contains("…") && n.count > 1 { return n.last == "1" ? "… 1 agent running" : "… \(n.last) agents running" }
   if markOf(a).contains("…") { return "… working" }
-  return "✓ idle"
+  return "✓ done"
 }
 
 func ritualOf(_ d) -> String {
@@ -123,7 +134,8 @@ func area(_ w) -> some View {
       }
     }
     ForEach(focus.filter { waiting($0) }) { a in focusRow(w, a) }
-    ForEach(focus.filter { !waiting($0) }) { a in focusRow(w, a) }
+    ForEach(focus.filter { !waiting($0) && !settled($0) }) { a in focusRow(w, a) }
+    ForEach(focus.filter { settled($0) }) { a in secondaryRow(w, a) }
     ForEach(secondary.filter { waiting($0) }) { a in secondaryRow(w, a) }
     ForEach(secondary.filter { !waiting($0) }) { a in secondaryRow(w, a) }
     if background.count > 0 {

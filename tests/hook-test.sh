@@ -171,6 +171,7 @@ check "stop with ✋ -> waiting" '[ "$(ring_next_state working stop:waiting)" = 
 check "stop without marker -> done" '[ "$(ring_next_state working stop:none)" = done ]'
 check "event kinds" '[ "$(ring_event_kind agent.needs_input)$(ring_event_kind agent.hook.AskUserQuestion)$(ring_event_kind agent.hook.Notification)" = needs_inputneeds_inputnotification ]'
 check "PreToolUse is ignored" '[ -z "$(ring_event_kind agent.hook.PreToolUse)" ]'
+check "focus changes are a focus event" '[ "$(ring_event_kind surface.focused)$(ring_event_kind workspace.selected)" = focusfocus ]'
 sid="304d5e9a-d290-4369-8dcb-50c2d57d2547"
 feed_id() { printf 'cmux-feed-v1:%s:%s' "$(printf %s "$1" | base64)" "$(printf %s "$2" | base64)"; }
 check "feed id decodes to the Claude session" '[ "$(ring_session_of_event "$(feed_id claude "$sid")")" = "$sid" ]'
@@ -190,6 +191,28 @@ check "title base drops Claude ✳" '[ "$(ring_title_base "◉… ✳ Fix tests"
 check "process titles recognised" 'ring_is_process_title "✳ Fix tests" && ring_is_process_title "⠂ Fix" && ring_is_process_title ""'
 check "a name the reader gave is not a process title" '! ring_is_process_title "build logs"'
 check "a bare \"Claude Code\" is a process title" 'ring_is_process_title "Claude Code" && ! ring_is_process_title "Claude Code review"'
+check "◐◓◑◒ titles are Claude's, not the reader's" 'ring_is_process_title "◐ fix-matcher-bug-rewrite" && ring_is_process_title "◓ x" && ring_is_process_title "◑ x" && ring_is_process_title "◒ x"'
+check "title base drops ◐◓◑◒ under our prefix" '[ "$(ring_title_base "◉✓ ◐ fix-matcher-bug-rewrite")" = fix-matcher-bug-rewrite ] && [ "$(ring_title_base "◑ parties")" = parties ] && [ "$(ring_title_base "◓ a")$(ring_title_base "◒ b")" = ab ]'
+check "strip a subagent count prefix" '[ "$(ring_strip_ours "◉…2 build logs")" = "build logs" ] && [ "$(ring_strip_ours "◎…12 x")" = x ]'
+check "shown state: waiting wins over subagents" '[ "$(ring_shown_state waiting 2 false)" = waiting ]'
+check "shown state: subagents over done, seen or not" '[ "$(ring_shown_state done 1 true)" = agents ] && [ "$(ring_shown_state working 3 false)" = agents ]'
+check "shown state: done and seen goes quiet" '[ "$(ring_shown_state done 0 true)" = seen ] && [ "$(ring_shown_state done 0 false)" = done ] && [ "$(ring_shown_state working 0 true)" = working ]'
+check "tab title with running subagents" '[ "$(ring_tab_title focus agents leggia 2)" = "◉…2 leggia" ]'
+check "tab title once seen: no state glyph" '[ "$(ring_tab_title focus seen leggia 0)" = "◉ leggia" ]'
+now=1000000
+check "agents: a start adds the id, a duplicate start is harmless" '[ "$(ring_agent_card start a1 $now "$(ring_agent_card start a1 $((now - 5)) "{}")" | jq -c .agents)" = "{\"a1\":$now}" ]'
+two='{"seen":true,"agents":{"a1":1000000,"a2":1000000}}'
+check "agents: a stop removes the id and marks the turn unseen" '[ "$(ring_agent_card stop a1 $now "$two" | jq -c "[.agents, .seen]")" = "[{\"a2\":$now},false]" ]'
+check "agents: a stop of an unknown id changes no set" '[ "$(ring_agent_card stop zz $now "{\"agents\":{\"a1\":$now}}" | jq -c .agents)" = "{\"a1\":$now}" ]'
+check "agents: ids older than 2h are dropped" '[ "$(ring_agent_card start a2 $now "{\"agents\":{\"old\":$((now - 7201))}}" | jq -c ".agents | keys")" = "[\"a2\"]" ]'
+stale='{"agents":{"a":1000000,"old":992799}}'
+check "agents: count skips stale ids" '[ "$(ring_agent_count "$stale" $now)" = 1 ] && [ "$(ring_agent_count "{}" $now)" = 0 ]'
+vt='{"windows":[{"workspaces":[{"id":"w1","selected":true,"panes":[{"surfaces":[{"id":"s1","focused":true},{"id":"s2","focused":false}]}]},{"id":"w2","selected":false,"panes":[{"surfaces":[{"id":"s3","focused":true}]}]}]}]}'
+check "visible: the focused tab of the selected workspace" 'ring_visible "$vt" s1 && ! ring_visible "$vt" s2 && ! ring_visible "$vt" s3'
+fc='[{"session":"a","surface":"S1","workspace":"W1","state":"done"},{"session":"b","surface":"s9","workspace":"w1","state":"done","seen":true},{"session":"c","surface":"s8","workspace":"w1","state":"working"},{"session":"d","surface":"s7","workspace":"w9","state":"done"}]'
+fe1='{"name":"surface.focused","surface_id":"s1","workspace_id":"w1"}'
+fe2='{"name":"workspace.selected","workspace_id":"w5"}'
+check "focus event: the finished, unseen sessions of that surface or workspace" '[ "$(ring_focus_sessions "$fc" "$fe1")" = a ] && [ -z "$(ring_focus_sessions "$fc" "$fe2")" ]'
 cards='[{"layer":"focus","key":"DC","state":"waiting"},{"layer":"background","state":"waiting"},{"layer":"secondary","key":"RB","state":"done"}]'
 check "rollup" '[ "$(ring_rollup "$cards" "" "")" = "◉ DC · 2 waiting on you" ]'
 check "rollup, quiet" '[ "$(ring_rollup "$cards" quiet "")" = "○ · 2 waiting on you" ]'
@@ -210,6 +233,8 @@ check "waiting line" '[ "$(ring_waiting_line "$wl")" = "✋ 1 waiting on you: le
 check "waiting line, none" '[ "$(ring_waiting_line "[]")" = "Nothing waits on you." ]'
 oi='[{"state":"waiting","base":"leggia","ws_title":"DC","marker":"✋ ship?"},{"state":"done","base":"x","ws_title":"DC"}]'
 check "open items per area" '[ "$(ring_open_items "$oi")" = "DC: ✋ leggia (✋ ship?)" ]'
+oa="[{\"state\":\"done\",\"base\":\"x\",\"ws_title\":\"DC\",\"agents\":{\"a\":$(date +%s)}},{\"state\":\"done\",\"base\":\"y\",\"ws_title\":\"DC\",\"agents\":{\"a\":1}}]"
+check "open items: a done turn with live subagents is open, a stale one is not" '[ "$(ring_open_items "$oa")" = "DC: … x" ]'
 
 echo ""
 
@@ -287,12 +312,13 @@ CMUX_LOG="$RING_HOME/cmux.log"
 printf '#!/usr/bin/env bash\n[ -n "${FAKE_CMUX_SLEEP:-}" ] && sleep "$FAKE_CMUX_SLEEP"\n(IFS="|"; printf "%%s\\n" "$*") >> "%s"\n[ "$1" = tree ] && cat "%s" 2>/dev/null\nexit 0\n' \
   "$CMUX_LOG" "$RING_HOME/tree.json" > "$RING_HOME/cmux"
 chmod +x "$RING_HOME/cmux"
-tree() {  # $1 description, $2.. "surface|title" tabs of workspace ws-1 (one pane); title $WS_TITLE
+tree() {  # $1 description, $2.. "surface|title" tabs of workspace ws-1 (one pane); title $WS_TITLE;
+          # $FOCUS names the surface on screen (ws-1 selected, that tab focused)
   local d="$1"; shift
   python3 -c 'import json,sys
-w=sys.argv[1]; d=sys.argv[2]; tabs=[t.split("|",1) for t in sys.argv[3:]]
-print(json.dumps({"windows":[{"workspaces":[{"id":"ws-1","title":w,"description":d or None,
-  "panes":[{"surfaces":[{"id":s,"title":t} for s,t in tabs]}]}]}]}))' "${WS_TITLE:-DC area}" "$d" "$@" > "$RING_HOME/tree.json"
+w=sys.argv[1]; f=sys.argv[2]; d=sys.argv[3]; tabs=[t.split("|",1) for t in sys.argv[4:]]
+print(json.dumps({"windows":[{"workspaces":[{"id":"ws-1","title":w,"description":d or None,"selected":bool(f),
+  "panes":[{"surfaces":[{"id":s,"title":t,"focused":s==f} for s,t in tabs]}]}]}]}))' "${WS_TITLE:-DC area}" "${FOCUS:-}" "$d" "$@" > "$RING_HOME/tree.json"
 }
 hook() {  # $1 event, then env assignments; payload on stdin
   local ev="$1"; shift
@@ -513,6 +539,63 @@ payload s7 /tmp/nowhere "" | hook session-end "${IN_CMUX[@]}"
 check "a reader rename of the ring's name is kept, even at restore" '[ "$(ws_renames)" = 0 ] && ! grep -q "^workspace-action|--action|clear-name" "$CMUX_LOG"'
 rm -f "$RING_HOME/areas.md"
 
+echo "Ring subagents + seen (hooks):"
+rm -f "$RING_HOME"/ring/sessions/*.json "$RING_HOME"/ring/workspaces/*.json
+agent() {  # $1 start|stop, $2 session, $3 agent id
+  python3 -c 'import json,sys; print(json.dumps({"session_id": sys.argv[1], "agent_id": sys.argv[2], "agent_type": "Explore", "hook_event_name": "Subagent"}))' "$2" "$3" |
+    hook "subagent-$1" "${IN_CMUX[@]}"
+}
+titled() { tree "" "sf-1|$(card s10 | jq -r .last_title)"; }  # cmux shows what we painted
+tree "" "sf-1|✳ Fix parser"
+payload s10 /tmp/nowhere "" "go" | hook user-submit "${IN_CMUX[@]}" >/dev/null
+payload s10 /tmp/nowhere "Looked at DEV-1706.${nl}✓ launched two agents" | hook stop "${IN_CMUX[@]}"
+titled
+agent_out=$(agent start s10 ag-1; agent start s10 ag-2; agent start s10 ag-2)
+check "subagent hooks print nothing" '[ -z "$agent_out" ]'
+check "subagent starts: a set of ids, duplicates harmless" 'card s10 | jq -e ".agents | keys == [\"ag-1\", \"ag-2\"]"'
+check "done turn with subagents running: tab shows …2, not ✓" '[ "$(card s10 | jq -r .last_title)" = "◉…2 Fix parser" ]'
+titled
+payload s10 /tmp/nowhere "✋ waiting on you: merge?" | hook stop "${IN_CMUX[@]}"
+check "✋ wins over running subagents" '[ "$(card s10 | jq -r .last_title)" = "◉✋ Fix parser" ]'
+titled
+payload s10 /tmp/nowhere "✓ ok" | hook stop "${IN_CMUX[@]}"
+titled
+agent stop s10 ag-1; titled; agent stop s10 ag-2; titled; agent stop s10 ag-2
+check "last subagent stops: back to ✓ done, unseen" '[ "$(card s10 | jq -r .last_title)" = "◉✓ Fix parser" ] && card s10 | jq -e ".agents == {} and .seen == false"'
+check "subagent hook outside cmux: nothing" 'python3 -c "import json; print(json.dumps({\"session_id\": \"s11\", \"agent_id\": \"a\"}))" | hook subagent-start env -u CMUX_WORKSPACE_ID; [ ! -f "$RING_HOME/ring/sessions/s11.json" ]'
+FOCUS=sf-1 titled
+payload s10 /tmp/nowhere "✓ ok" | hook stop "${IN_CMUX[@]}"
+check "a turn that ends on screen is seen at once: quiet title" '[ "$(card s10 | jq -r .last_title)" = "◉ Fix parser" ] && card s10 | jq -e ".seen == true"'
+titled
+payload s10 /tmp/nowhere "" "next" | hook user-submit "${IN_CMUX[@]}" >/dev/null
+titled
+payload s10 /tmp/nowhere "✓ ok" | hook stop "${IN_CMUX[@]}"
+check "a new turn resets it: ✓ while not on screen" '[ "$(card s10 | jq -r .last_title)" = "◉✓ Fix parser" ] && card s10 | jq -e ".seen == false"'
+focus_evt() { printf '{"name":"%s","surface_id":"%s","workspace_id":"ws-1","payload":{"surface_id":"%s"}}' "$1" "$2" "$2"; }
+titled
+CMUX_AUTOMATION_EVENT_JSON="$(focus_evt surface.focused sf-1)" ring_cli event
+check "a focus event while the tab is not on screen: still ✓" '[ "$(card s10 | jq -r .last_title)" = "◉✓ Fix parser" ]'
+FOCUS=sf-1 titled
+: > "$CMUX_LOG"
+CMUX_AUTOMATION_EVENT_JSON="$(focus_evt surface.focused SF-1)" ring_cli event
+check "the reader switches to the tab: it goes quiet" '[ "$(card s10 | jq -r .last_title)" = "◉ Fix parser" ] && grep -q "rename-tab.*|◉ Fix parser$" "$CMUX_LOG"'
+: > "$CMUX_LOG"
+CMUX_AUTOMATION_EVENT_JSON="$(focus_evt workspace.selected sf-9)" ring_cli event
+check "a seen turn is not repainted on every focus change" '[ ! -s "$CMUX_LOG" ]'
+payload s10 /tmp/nowhere "" | hook session-end "${IN_CMUX[@]}"
+
+# A card from an earlier build that took Claude's "◑ topic" title for a reader name.
+printf '{"session":"s12","surface":"sf-1","workspace":"ws-1","state":"done","layer":"focus","last_title":"◉✓ ◑ parties-re-extraction","base":"◑ parties-re-extraction","user_named":true}' \
+  > "$RING_HOME/ring/sessions/s12.json"
+tree "" "sf-1|◉✓ ◑ parties-re-extraction"
+payload s12 /tmp/nowhere "✓ x" | hook stop "${IN_CMUX[@]}"
+check "a stored ◑ reader name heals: glyph gone, follows Claude again" 'card s12 | jq -e ".user_named == false and .base == \"parties-re-extraction\" and .last_title == \"○✓ parties-re-extraction\""'
+printf '%s\n' '{"type":"ai-title","aiTitle":"Parties re-extraction","sessionId":"s12"}' > "$RING_HOME/t12.jsonl"
+tree "" "sf-1|$(card s12 | jq -r .last_title)"
+payload s12 /tmp/nowhere "✓ x" "" "$RING_HOME/t12.jsonl" | hook stop "${IN_CMUX[@]}"
+check "...and takes the ai-title" 'card s12 | jq -e ".base == \"Parties re-extraction\""'
+rm -f "$RING_HOME"/ring/sessions/*.json "$RING_HOME"/ring/workspaces/*.json
+
 echo ""
 
 # --- ring: sidebar + cmux config templates + install ---
@@ -525,6 +608,9 @@ check "layer from the tab title glyph" 'grep -q "hasPrefix(\"◉\")" "$SB" && gr
 check "sidebar still reads tabs painted before 0.4.1" 'grep -q "hasPrefix(\"🔊\")" "$SB" && grep -q "hasPrefix(\"🔉\")" "$SB"'
 check "sidebar shows only the new glyphs" '! grep -vE "hasPrefix|contains\(" "$SB" | grep -v "^//" | grep -qE "🔊|🔉|🔇|⏸"'
 check "state from the title glyph, legacy ⏸ included" 'grep -q "contains(\"✋\") || markOf(a).contains(\"⏸\")" "$SB"'
+check "a seen focus tab drops to the muted line" 'grep -qF "ForEach(focus.filter { settled(\$0) }) { a in secondaryRow(w, a) }" "$SB"'
+check "sidebar says how many subagents run" 'grep -q "agents running" "$SB" && grep -q "split(separator: \"…\")" "$SB"'
+check "automations mark a finished turn seen on focus" 'jq -e "[.rules[].when.event] | index(\"surface.focused\") and index(\"workspace.selected\")" "$ROOT/cmux/automations.json"'
 check "tap focuses the tab" 'grep -q "cmux(\"surface.focus\", surface_id: a.surfaceId)" "$SB"'
 check "background collapses per area" 'grep -q "parked · " "$SB"'
 check "ritual row opens the ritual on tap" 'grep -q "cmux(\"workspace.create\", title: \"Ritual\"" "$SB"'
@@ -605,6 +691,7 @@ check "README states what is stored" 'grep -q "ring/sessions/<session>.json" "$R
 check "README: selecting the sidebar turns on the custom-sidebar beta" 'grep -q "custom-sidebar beta" "$ROOT/README.md"'
 check "README: nothing is installed into cmux without asking" 'grep -q "install automations" "$ROOT/README.md" && grep -q "install dock" "$ROOT/README.md"'
 check "hooks.json registers Stop, UserPromptSubmit, SessionEnd" 'jq -e ".hooks.Stop and .hooks.UserPromptSubmit and .hooks.SessionEnd" "$ROOT/hooks/hooks.json"'
+check "hooks.json registers SubagentStart, SubagentStop through attently.sh" 'jq -e ".hooks.SubagentStart[0].hooks[0].args[2] == \"subagent-start\" and .hooks.SubagentStop[0].hooks[0].args[2] == \"subagent-stop\"" "$ROOT/hooks/hooks.json"'
 
 echo ""
 

@@ -65,6 +65,38 @@
           }
         ]
       }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/attently.sh",
+              "hook",
+              "subagent-start"
+            ],
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/attently.sh",
+              "hook",
+              "subagent-stop"
+            ],
+            "timeout": 5
+          }
+        ]
+      }
     ]
   }
 }

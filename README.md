@@ -28,7 +28,7 @@ have the conclusion, not an abridgement of it.
 ## What installs
 
 The session-start hook injects the full depth contract *and* the rendering rules into every
-session. Inside cmux, prompt / Stop / SessionEnd hooks add the ring (below). No CLAUDE.md edits needed. No skill loads required for the rules to take effect.
+session. Inside cmux, prompt / Stop / SessionEnd / Subagent hooks add the ring (below). No CLAUDE.md edits needed. No skill loads required for the rules to take effect.
 
 Skills exist for deep reference only -- edge cases, anti-patterns, worked examples. The ambient
 injection carries everything a session needs to change behavior.
@@ -69,7 +69,9 @@ title, and the workspace description carries the area's rollup:
 | ◎ Secondary | serves priority 2 | `◎✓ minerva`, after the focus tabs | only when it waits on you |
 | ○ Background | everything else | `○… attently`, last | none; still in Feed on demand |
 
-State glyphs: `✋` waiting on you, `…` working, `✓` done. Area rollup: `◉ DC · 2 waiting on you`,
+State glyphs: `✋` waiting on you, `…` working, `…2` two subagents still running (even after the
+turn ended), `✓` done and not yet seen, no glyph once you have seen it (the sidebar row goes
+quiet; a new turn makes it loud again). `✋` always wins. Area rollup: `◉ DC · 2 waiting on you`,
 above whatever description you had written, which stays and comes back when the last session
 leaves.
 
@@ -132,8 +134,8 @@ prefix with `!` (`! attently-ring install sidebar`).
 
 1. `attently-ring install sidebar` writes `~/.config/cmux/sidebars/ring.swift`.
 2. `attently-ring install automations` writes `~/.cmuxterm/automations.json` (the waiting
-   transitions), then `cmux automation reload && cmux automation list`. If you already have
-   automations, it refuses: merge the four `attently-ring-*` rules from `cmux/automations.json`
+   transitions, and focus changes that mark a finished turn seen), then `cmux automation reload && cmux automation list`. If you already have
+   automations, it refuses: merge the six `attently-ring-*` rules from `cmux/automations.json`
    by hand, with `__ATTENTLY_RING__` replaced by the path of `bin/attently-ring`.
 3. Notification filter: add to `~/.config/cmux/cmux.json`, with the absolute path from
    `! command -v attently-ring`:

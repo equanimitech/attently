@@ -68,6 +68,40 @@
           "timeout_seconds": 15
         }
       ]
+    },
+    {
+      "id": "attently-ring-focus",
+      "when": {
+        "event": "surface.focused"
+      },
+      "rate_limit": {
+        "interval_seconds": 1,
+        "maximum": 20
+      },
+      "then": [
+        {
+          "action": "run",
+          "command": "PATH=/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin:$PATH '__ATTENTLY_RING__' event",
+          "timeout_seconds": 15
+        }
+      ]
+    },
+    {
+      "id": "attently-ring-workspace",
+      "when": {
+        "event": "workspace.selected"
+      },
+      "rate_limit": {
+        "interval_seconds": 1,
+        "maximum": 20
+      },
+      "then": [
+        {
+          "action": "run",
+          "command": "PATH=/usr/bin:/bin:/usr/local/bin:/opt/homebrew/bin:$PATH '__ATTENTLY_RING__' event",
+          "timeout_seconds": 15
+        }
+      ]
     }
   ]
 }
