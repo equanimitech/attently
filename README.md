@@ -127,20 +127,28 @@ Typing `/sunrise` or `/sunset` yourself counts too.
 
 ### /sauron: settle what waits on you
 
-With ten sessions each ending on a `✋`, the open decisions sprawl across tabs. Open a tab of
-its own and run `/sauron` ("what's waiting on me", "consolidate the ring"). It reads every ring
-card, drops those whose tab is gone, ranks the rest by `today.md` then age, and merges the ones
-about the same thing: two tabs asking about merging `#568` become one decision.
+With ten sessions each ending on a `✋`, the open decisions sprawl across tabs.
+`skills/sauron/open.sh` opens sauron in its own pinned `👁 Sauron` workspace (or focuses it),
+or run `/sauron` in any tab ("what's waiting on me", "consolidate the ring"). It reads every
+ring card, ranks the open questions by `today.md` then age, and merges the ones about the same
+thing: two tabs asking about merging `#568` become one decision. A question whose tab has
+closed is a **lost** decision, not noise: it shows on the board too.
 
 It then walks you through them one at a time, most important first, answered inline from the
 Feed: answer (yours, or one it drafts from the session's context), close the session
-(`/close-up`), leave it open, or open the tab. A cluster takes one answer, adapted to each
-session. Nothing is typed into another tab until you have approved the exact text, and never
-into a session that is working. It ends on a one-screen ledger: sent, closed, still open.
+(`/close-up`), leave it open, or open the tab; a lost one can be resumed in a new tab, captured
+with `/question`, or dropped. A cluster takes one answer, adapted to each session. Nothing is
+typed into another tab until you have approved the exact text, and never into a session that is
+working. A one-screen ledger follows: sent, closed, still open.
+
+Then it stays open, silent, re-reading the ring every 20 seconds, and walks each new or changed
+decision as it lands. One you left open is not asked again until its question changes.
+`/sauron once` stops after the ledger.
 
 Sauron only reads and carries your answers. It edits nothing in other repos and merges nothing
 itself; the session that receives "merge it" does the merging. `skills/sauron/gather.sh` prints
-the open decisions as JSON (`--self-test` checks it against fixtures).
+the open decisions as JSON; `gather.sh --self-test` and `open.sh --self-test` check both scripts
+against fixtures.
 
 ### Enable the ring
 
@@ -197,7 +205,7 @@ area, and tapping it focuses the tab. Ask it to use AskUserQuestion and the tab 
   workspace descriptions, workspace titles (from `areas.md`, only where you have not named the
   workspace), one notification per day-phase, and -- only when you tap a ritual -- a Ritual
   workspace. It never sends input to a session and never moves focus by itself; only
-  `/sauron` types into a tab, and only text you approved verbatim.
+  `/sauron` types into a tab or resumes a closed session, and only what you approved.
 - **Blocks nothing.** It never denies a tool or fails a turn. Every hook exits 0; cmux calls
   run detached and time-boxed.
 - **Depends on** `bash` and `cat` for the contract; `jq`, `perl` and cmux for the ring, which

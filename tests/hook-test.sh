@@ -576,6 +576,7 @@ done
 check "visual-pitch example" '[ -f "$ROOT/skills/visual-pitch/examples/signet-pitch-yanik.md" ]'
 check "sauron" '[ -f "$ROOT/skills/sauron/SKILL.md" ]'
 check "sauron gather self-test" 'bash "$ROOT/skills/sauron/gather.sh" --self-test'
+check "sauron open self-test" 'bash "$ROOT/skills/sauron/open.sh" --self-test'
 
 echo ""
 
