@@ -14,7 +14,9 @@
 #   rituals.log                     "<day> <PHASE> offered|done [workspace]", one line per step
 #   quiet                           present while midday quiet is on
 # Read, never written: today.md (priorities), areas.md (folder -> area name),
-# ~/.zenborg/phaseConfigs.json (phase windows), and the ai-title lines of each transcript.
+# ~/.zenborg/phaseConfigs.json (phase windows), and the ai-title / custom-title / last-prompt
+# lines of each transcript. After a turn whose marker moved, Haiku names the session's current
+# topic (ring_retitle).
 
 ATTENTLY_HOME="${ATTENTLY_HOME:-$HOME/.claude/attently}"
 ATTENTLY_PHASES="${ATTENTLY_PHASES:-$HOME/.zenborg/phaseConfigs.json}"
@@ -23,6 +25,10 @@ RING_TERM_MIN=3
 # ponytail: a subagent whose SubagentStop never came (crash, kill) stops counting after 2h; an
 # agent running longer than that reads as finished. Raise it if long agents become the norm.
 RING_AGENT_MAX_AGE=7200
+# ponytail: at most one Haiku retitle per session per 10 min; a topic that moves faster keeps
+# the older name until the next turn past the bound.
+RING_RETITLE_GAP=600
+RING_TOPIC_MAX=48
 
 # =============================================================================================
 # Pure: markers
@@ -232,6 +238,49 @@ ring_title_base() {
 ring_is_process_title() {
     case "$1" in "" | "✳"* | "◐"* | "◓"* | "◑"* | "◒"* | claude | Claude | "Claude Code" | */*) return 0 ;; esac
     printf '%s' "$1" | LC_ALL=en_US.UTF-8 grep -q '^[⠀-⣿]'
+}
+
+# The name of a tab the reader did not name: /rename (custom-title) > the ring's topic >
+# Claude's ai-title. Prints the first non-empty one, or nothing (the caller falls back).
+ring_title_pick() {
+    local t
+    for t in "$@"; do [ -n "$t" ] && { printf '%s' "$t"; return; }; done
+}
+
+# Retitle after a turn whose marker differs from the one the topic came from, once the last
+# retitle is RING_RETITLE_GAP old. $1 marker, $2 topic_marker, $3 topic_ts, $4 now.
+ring_should_retitle() {
+    [ "$1" != "$2" ] && [ $(($4 - ${3:-0})) -ge "$RING_RETITLE_GAP" ]
+}
+
+# A model's answer as a tab name: first non-empty line, no markdown, quotes, "Title:" label
+# or trailing punctuation, at most RING_TOPIC_MAX characters. Empty when nothing is left.
+ring_title_clean() {
+    local t c
+    t=$(printf '%s\n' "$1" | awk 'NF { print; exit }' | LC_ALL=en_US.UTF-8 sed -E \
+        -e 's/[[:cntrl:]]//g' -e 's/[`*_#>]//g' \
+        -e 's/^[[:space:]]*([Tt]itle|[Tt]opic)[[:space:]]*:[[:space:]]*//' \
+        -e 's/["“”]//g' -e "s/^[[:space:]]*['‘’]+//" -e "s/['‘’]+[[:space:]]*$//" \
+        -e 's/[[:space:]]+/ /g' -e 's/^ //' -e 's/[ .!?,;:…]+$//')
+    # Too long: cut at the last whole word that fits (hard, for one long word).
+    if [ "$(printf '%s' "$t" | LC_ALL=en_US.UTF-8 wc -m)" -gt "$RING_TOPIC_MAX" ]; then
+        c=$(printf '%s' "$t" | LC_ALL=en_US.UTF-8 cut -c "1-$((RING_TOPIC_MAX + 1))")
+        case "$c" in *" "*) c=${c% *} ;; esac
+        t=$(printf '%s' "$c" | LC_ALL=en_US.UTF-8 cut -c "1-$RING_TOPIC_MAX")
+    fi
+    printf '%s' "$t" | sed -E 's/[ .,;:-]+$//'
+}
+
+# At most $2 bytes of $3, from its head or tail ($1), never a broken UTF-8 character.
+ring_clip() {
+    if [ "$1" = head ]; then printf '%s' "$3" | head -c "$2"; else printf '%s' "$3" | tail -c "$2"; fi |
+        iconv -c -f UTF-8 -t UTF-8 2>/dev/null
+}
+
+# What Haiku reads: $1 ai-title, $2 last prompt, $3 marker, $4 end of the last reply. Capped.
+ring_titler_prompt() {
+    printf 'Session title so far: %s\nLast request: %s\nTurn-end marker: %s\nEnd of the last reply: %s\n' \
+        "$(ring_clip head 120 "$1")" "$(ring_clip head 400 "$2")" "$(ring_clip head 200 "$3")" "$(ring_clip tail 600 "$4")"
 }
 
 # The area name areas.md gives a directory, or nothing. $1 areas.md, $2 cwd, $3 home.
@@ -563,7 +612,8 @@ ring_paint() {
     # Once renamed, the tab no longer follows Claude's title, so Claude's own topic comes from
     # the transcript instead. Names the reader gave are never touched.
     if [ "$user_named" = false ]; then
-        ai=$(ring_ai_title "$(jq -r '.transcript // empty' <<<"$card")")
+        ai=$(jq -r '.transcript // empty' <<<"$card")
+        ai=$(ring_title_pick "$(ring_custom_title "$ai")" "$(jq -r '.topic // empty' <<<"$card")" "$(ring_ai_title "$ai")")
         [ -n "$ai" ] && base=$ai
     fi
     [ -n "$base" ] || base=$(jq -r '.cwd // "" | split("/") | last' <<<"$card")
@@ -749,9 +799,60 @@ ring_stop() {
         '{session: $s, cwd: $cwd, transcript: $tp, branch: $branch, marker: $marker, blocks: $blocks, layer: $layer,
           key: $key, today_hash: $hash, state: $st, surface: $sf, workspace: $ws, ts: $ts, seen: false}')" || return 0
 
-    ring_background ring_paint "$session"
+    ring_background ring_after_stop "$session" "$(ring_clip tail 800 "$msg")"
     # Cards of sessions that died without SessionEnd.
     find "$(ring_sessions_dir)" -name '*.json' -mtime +2 -delete 2>/dev/null || true
+}
+
+# The detached half of Stop: paint now, then retitle (a Haiku call, seconds) and paint again.
+ring_after_stop() {
+    ring_paint "$1"
+    ring_retitle "$1" "$2" && ring_paint "$1"
+}
+
+# Name what the session is on now, when its marker moved (ring_should_retitle). Only for tabs
+# the ring names: a reader name or a /rename wins anyway. The attempt is recorded first, so a
+# failing or slow call is not retried on every turn; a failure keeps the previous name.
+#   $1 session, $2 end of the last reply
+ring_retitle() {
+    local session="$1" card tp marker now topic
+    card=$(ring_card "$session")
+    [ "$(jq -r '.user_named // false' <<<"$card")" = false ] || return 1
+    tp=$(jq -r '.transcript // empty' <<<"$card")
+    [ -z "$(ring_custom_title "$tp")" ] || return 1
+    marker=$(jq -r '.marker // empty' <<<"$card")
+    now=$(date +%s)
+    ring_should_retitle "$marker" "$(jq -r '.topic_marker // empty' <<<"$card")" \
+        "$(jq -r '.topic_ts // 0' <<<"$card")" "$now" || return 1
+    ring_card_merge "$session" "$(jq -n --arg m "$marker" --argjson ts "$now" '{topic_marker: $m, topic_ts: $ts}')" || return 1
+    topic=$(ring_title_clean "$(ring_titler_prompt "$(ring_ai_title "$tp")" "$(ring_last_prompt "$tp")" "$marker" "$2" |
+        ring_titler)")
+    [ -n "$topic" ] || return 1
+    ring_card_merge "$session" "$(jq -n --arg t "$topic" '{topic: $t}')"
+}
+
+# The real claude binary, never cmux's shim (which would register the call with cmux).
+ring_claude_bin() {
+    local b
+    # shellcheck disable=SC2046
+    for b in "${ATTENTLY_CLAUDE_BIN:-}" $(type -ap claude 2>/dev/null) "$HOME/.local/bin/claude"; do
+        case "$b" in "" | *cmux-cli-shims*) continue ;; esac
+        [ -x "$b" ] && { printf '%s' "$b"; return; }
+    done
+}
+
+# One Haiku call: prompt on stdin, answer on stdout, bounded. ATTENTLY_TITLER replaces the
+# binary (tests). The child never reaches the ring or cmux: no CMUX_* variables (ring_hook
+# returns early without CMUX_WORKSPACE_ID, cmux's own hooks have nothing to report to), all
+# hooks off, no saved session, no tools, run from the temp dir so no project context loads.
+ring_titler() {
+    local bin=${ATTENTLY_TITLER:-$(ring_claude_bin)}
+    [ -n "$bin" ] || return 1
+    # shellcheck disable=SC2046
+    (cd "${TMPDIR:-/tmp}" && unset $(compgen -e | grep -E '^(CMUX.*|CLAUDECODE)$') &&
+        ring_bounded "${RING_TITLER_TIMEOUT:-25}" "$bin" -p --model haiku --no-session-persistence --settings '{"disableAllHooks":true}' \
+        --tools "" --strict-mcp-config --disable-slash-commands \
+        --system-prompt "You name terminal tabs. Reply with only a 2 to 5 word title for what this coding session is working on now. No quotes, no trailing punctuation." 2>/dev/null)
 }
 
 # SubagentStart / SubagentStop: keep the card's set of live subagents, repaint.
@@ -863,12 +964,18 @@ ring_transcript_text() {
         | select(.type == "text") | .text] | last // empty' 2>/dev/null
 }
 
-# Claude's own topic for the session: the last {"type":"ai-title","aiTitle":…} line of its
-# transcript (Claude Code rewrites it as the topic moves). grep finds those lines without
+# The last {"type":$2, $3:…} record of transcript $1, one line. grep finds those lines without
 # parsing a transcript of several MB; jq decodes only them, escapes included.
-ring_ai_title() {
+ring_transcript_record() {
     [ -f "$1" ] || return 0
-    LC_ALL=C grep -F '"ai-title"' "$1" 2>/dev/null |
-        jq -rR 'fromjson? | select(.type == "ai-title") | .aiTitle | strings
+    LC_ALL=C grep -F "\"$2\"" "$1" 2>/dev/null |
+        jq -rR --arg t "$2" --arg f "$3" 'fromjson? | select(.type == $t) | .[$f] | strings
             | gsub("[[:cntrl:]]+"; " ") | gsub("^ +| +$"; "") | select(. != "")' 2>/dev/null | tail -n 1
 }
+
+# Claude's own topic for the session. Claude Code writes it once, from the first prompt, and
+# only re-appends the same value, so it never follows a drifting session (ring_retitle does).
+ring_ai_title() { ring_transcript_record "$1" ai-title aiTitle; }
+# The name the reader gave the session with /rename.
+ring_custom_title() { ring_transcript_record "$1" custom-title customTitle; }
+ring_last_prompt() { ring_transcript_record "$1" last-prompt lastPrompt; }

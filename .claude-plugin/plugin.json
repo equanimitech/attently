@@ -1,7 +1,7 @@
 {
   "name": "attently",
   "version": "0.4.2",
-  "description": "Gross-to-subtle communication for AI assistants. The depth contract and rendering rules from Vipassana meditation applied to how AI responds: verdict first, structure over prose, depth on demand. Inside cmux, the ring ranks every Claude session against your ~/.claude/attently/today.md so only what needs you reaches you, and invites day-phase rituals when you turn up. Blocks nothing. Reads today.md, areas.md (folder to area names), zenborg's phaseConfigs.json, each session's git branch and transcript ai-title, the cmux tree and each turn's last message; names tabs and unnamed workspaces; stores session cards, saved descriptions and titles, and a ritual log under ~/.claude/attently/ring/ and ~/.claude/attently/.",
+  "description": "Gross-to-subtle communication for AI assistants. The depth contract and rendering rules from Vipassana meditation applied to how AI responds: verdict first, structure over prose, depth on demand. Inside cmux, the ring ranks every Claude session against your ~/.claude/attently/today.md so only what needs you reaches you, and invites day-phase rituals when you turn up. Blocks nothing. Reads today.md, areas.md (folder to area names), zenborg's phaseConfigs.json, each session's git branch and transcript ai-title / custom-title / last-prompt, the cmux tree and each turn's last message; when a session's topic moves, sends its ai-title, last prompt, marker and reply tail to Haiku (claude -p) for a tab name; names tabs and unnamed workspaces; stores session cards, saved descriptions and titles, and a ritual log under ~/.claude/attently/ring/ and ~/.claude/attently/.",
   "author": {
     "name": "EquanimiTech",
     "url": "https://equanimi.tech"

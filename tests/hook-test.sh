@@ -250,7 +250,27 @@ printf '%s\n' \
 check "ai-title: the last one wins, escaped quotes decoded" '[ "$(ring_ai_title "$TR")" = "Fix \"quoted\" parser" ]'
 printf '%s\n' '{"type":"user","message":{"content":"hi"}}' > "$TR"
 check "ai-title: none in the transcript, or no transcript -> nothing" '[ -z "$(ring_ai_title "$TR")" ] && [ -z "$(ring_ai_title /nonexistent)" ]'
+printf '%s\n' '{"type":"custom-title","customTitle":"carte vitale","sessionId":"s"}' \
+  '{"type":"last-prompt","lastPrompt":"are we done?","sessionId":"s"}' > "$TR"
+check "custom-title (/rename) and last-prompt records" '[ "$(ring_custom_title "$TR")" = "carte vitale" ] && [ "$(ring_last_prompt "$TR")" = "are we done?" ]'
 rm -f "$TR"
+check "title precedence: /rename > topic > ai-title" '[ "$(ring_title_pick "carte vitale" "Parser rewrite" "Old")" = "carte vitale" ] && [ "$(ring_title_pick "" "Parser rewrite" "Old")" = "Parser rewrite" ] && [ "$(ring_title_pick "" "" "Old")" = Old ] && [ -z "$(ring_title_pick "" "" "")" ]'
+check "retitle: marker moved and 10 min passed" 'ring_should_retitle "✓ b" "✓ a" 1000 1600 && ring_should_retitle "✓ b" "" "" 1600'
+check "retitle: same marker, or too soon, does not" '! ring_should_retitle "✓ a" "✓ a" 0 99999 && ! ring_should_retitle "✓ b" "✓ a" 1000 1599 && ! ring_should_retitle "" "" "" 99999'
+check "title clean: quotes, trailing punctuation" '[ "$(ring_title_clean "\"Fixing the parser.\"")" = "Fixing the parser" ]'
+check "title clean: markdown and a Title: label, first line only" '[ "$(ring_title_clean "${nl}**Title:** Ring sidebar${nl}more")" = "Ring sidebar" ]'
+words=$(printf "word %.0s" $(seq 1 30))
+check "title clean: at most 48 characters, cut at a word" '[ "$(ring_title_clean "$words")" = "$(printf "word %.0s" $(seq 1 8))word" ]'
+check "title clean: the 48 are characters, not bytes" '[ "$(ring_title_clean "✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓✓" | LC_ALL=en_US.UTF-8 wc -m | tr -d " ")" = 48 ]'
+check "title clean: nothing left -> empty" '[ -z "$(ring_title_clean "  ${nl} \"\" ")" ]'
+long_reply="$(printf "x%.0s" $(seq 1 2000))END"
+tp_out=$(ring_titler_prompt "Old topic" "are we done?" "✓ merged" "$long_reply")
+check "titler prompt: ai-title, last prompt, marker, reply tail, capped" '[[ "$tp_out" == *"Old topic"* && "$tp_out" == *"are we done?"* && "$tp_out" == *"✓ merged"* && "$tp_out" == *"xEND"* ]] && [ ${#tp_out} -lt 1200 ]'
+check "clip never breaks a UTF-8 character" '[ "$(ring_clip head 4 "ab✓c")" = ab ] && [ "$(ring_clip tail 2 "a✓")" = "" ]'
+SHIMS=$(mktemp -d); mkdir -p "$SHIMS/cmux-cli-shims/x" "$SHIMS/bin"
+printf "#!/bin/sh\n" > "$SHIMS/cmux-cli-shims/x/claude"; cp "$SHIMS/cmux-cli-shims/x/claude" "$SHIMS/bin/claude"; chmod +x "$SHIMS"/cmux-cli-shims/x/claude "$SHIMS/bin/claude"
+check "the real claude binary, never the cmux shim" '[ "$(PATH="$SHIMS/cmux-cli-shims/x:$SHIMS/bin:$PATH" ring_claude_bin)" = "$SHIMS/bin/claude" ]'
+rm -rf "$SHIMS"
 areas="# folder → zenborg area; first match wins.
 
 ~/Developer/themia         ⚖️ Themia
@@ -305,6 +325,7 @@ echo ""
 # --- ring: hooks against a fake cmux ---
 
 echo "Ring hooks:"
+export ATTENTLY_TITLER=false  # no real Haiku call from the tests; stubbed where it matters
 RING_HOME=$(mktemp -d)
 trap 'chmod -R u+w "$RING_HOME" 2>/dev/null; rm -rf "$RING_HOME"' EXIT
 CMUX_LOG="$RING_HOME/cmux.log"
@@ -584,6 +605,33 @@ CMUX_AUTOMATION_EVENT_JSON="$(focus_evt workspace.selected sf-9)" ring_cli event
 check "a seen turn is not repainted on every focus change" '[ ! -s "$CMUX_LOG" ]'
 payload s10 /tmp/nowhere "" | hook session-end "${IN_CMUX[@]}"
 
+echo "Ring topic (Haiku retitle, stubbed):"
+rm -f "$RING_HOME"/ring/sessions/*.json "$RING_HOME"/ring/workspaces/*.json
+STUB="$RING_HOME/titler"
+printf '#!/usr/bin/env bash\nprintf "%%s|%%s\\n" "${CMUX_WORKSPACE_ID-unset}${CMUX_SURFACE_ID-unset}" "$*" >> "%s/titler.log"\ncat > "%s/titler.in"\nprintf "%%s\\n" "${TITLE_OUT-\\"Parser rewrite.\\"}"\n' "$RING_HOME" "$RING_HOME" > "$STUB"
+chmod +x "$STUB"
+T13="$RING_HOME/t13.jsonl"
+printf '%s\n' '{"type":"ai-title","aiTitle":"Fix parser","sessionId":"s13"}' '{"type":"last-prompt","lastPrompt":"now the lexer","sessionId":"s13"}' > "$T13"
+titled13() { tree "" "sf-1|$(card s13 | jq -r .last_title)"; }
+tree "" "sf-1|✳ Claude Code"
+payload s13 /tmp/nowhere "Moved on to the lexer.${nl}✓ lexer split" "" "$T13" | hook stop "${IN_CMUX[@]}" ATTENTLY_TITLER="$STUB"
+check "a moved marker: Haiku names the topic, the tab follows it" 'card s13 | jq -e ".topic == \"Parser rewrite\" and .topic_marker == \"✓ lexer split\" and (.topic_ts > 0)" && [[ "$(card s13 | jq -r .last_title)" == *"✓ Parser rewrite" ]]'
+check "Haiku reads the ai-title, the last prompt, the marker and the reply tail" 'grep -q "Fix parser" "$RING_HOME/titler.in" && grep -q "now the lexer" "$RING_HOME/titler.in" && grep -q "✓ lexer split" "$RING_HOME/titler.in" && grep -q "Moved on to the lexer" "$RING_HOME/titler.in"'
+check "no recursion: the child claude sees no CMUX_* and runs with hooks off, unsaved" 'grep -q "^unsetunset|-p --model haiku --no-session-persistence --settings {\"disableAllHooks\":true}" "$RING_HOME/titler.log"'
+titled13
+payload s13 /tmp/nowhere "✓ another marker" "" "$T13" | hook stop "${IN_CMUX[@]}" ATTENTLY_TITLER="$STUB"
+check "within 10 min: no second call" '[ "$(wc -l < "$RING_HOME/titler.log" | tr -d " ")" = 1 ]'
+card s13 | jq '.topic_ts = 1' > "$RING_HOME/c.json" && mv "$RING_HOME/c.json" "$RING_HOME/ring/sessions/s13.json"
+titled13
+payload s13 /tmp/nowhere "✓ third marker" "" "$T13" | hook stop "${IN_CMUX[@]}" ATTENTLY_TITLER="$STUB" TITLE_OUT=""
+check "an empty answer keeps the previous name" '[ "$(wc -l < "$RING_HOME/titler.log" | tr -d " ")" = 2 ] && card s13 | jq -e ".topic == \"Parser rewrite\""'
+printf '%s\n' '{"type":"custom-title","customTitle":"carte vitale","sessionId":"s13"}' >> "$T13"
+card s13 | jq '.topic_ts = 1' > "$RING_HOME/c.json" && mv "$RING_HOME/c.json" "$RING_HOME/ring/sessions/s13.json"
+titled13
+payload s13 /tmp/nowhere "✓ fourth marker" "" "$T13" | hook stop "${IN_CMUX[@]}" ATTENTLY_TITLER="$STUB"
+check "/rename wins over the topic, and Haiku is not asked" '[[ "$(card s13 | jq -r .last_title)" == *"✓ carte vitale" ]] && [ "$(wc -l < "$RING_HOME/titler.log" | tr -d " ")" = 2 ]'
+rm -f "$RING_HOME"/ring/sessions/*.json "$RING_HOME"/ring/workspaces/*.json
+
 # A card from an earlier build that took Claude's "◑ topic" title for a reader name.
 printf '{"session":"s12","surface":"sf-1","workspace":"ws-1","state":"done","layer":"focus","last_title":"◉✓ ◑ parties-re-extraction","base":"◑ parties-re-extraction","user_named":true}' \
   > "$RING_HOME/ring/sessions/s12.json"
@@ -682,6 +730,8 @@ check "version 0.4.2" '[ "$(jq -r .version "$PJ")" = 0.4.2 ]'
 check "manifest no longer claims to store nothing" '! grep -qi "stores nothing" "$PJ"'
 check "manifest names where the ring stores" 'grep -q "~/.claude/attently/ring/" "$PJ"'
 check "manifest names what it reads" 'grep -q "today.md" "$PJ" && grep -q "phaseConfigs" "$PJ" && grep -q "areas.md" "$PJ" && grep -q "ai-title" "$PJ"'
+check "manifest says what it sends to Haiku" 'grep -q "Haiku" "$PJ"'
+check "README says what it sends to Haiku" 'grep -q "claude -p --model haiku" "$ROOT/README.md"'
 check "manifest says it blocks nothing" 'grep -q "Blocks nothing" "$PJ"'
 for read in "today.md" "areas.md" "phaseConfigs.json" "git branch" "cmux tree" "last assistant message" "ai-title"; do
   check "README states it reads: $read" 'grep -q "$read" "$ROOT/README.md"'

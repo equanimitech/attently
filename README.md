@@ -75,8 +75,13 @@ quiet; a new turn makes it loud again). `✋` always wins. Area rollup: `◉ DC 
 above whatever description you had written, which stays and comes back when the last session
 leaves.
 
-The name after the glyphs is Claude's own topic for the session, the `ai-title` it writes into
-its transcript, so it moves with the topic. A tab you rename keeps your name.
+The name after the glyphs, for a tab you have not renamed: the session's `/rename` title, else
+the ring's topic, else Claude's `ai-title` (written once, from the first prompt, so it never
+moves), else the folder. The topic follows a drifting session: after a turn whose `✋`/`✓` marker
+changed, at most every 10 minutes, the detached Stop job asks Haiku (`claude -p --model haiku`,
+hooks off, no saved session, no tools, 25 s cap) for a 2-5 word title from the `ai-title`, your
+last prompt, the marker and the end of the reply. A failed or empty answer keeps the old name. A
+tab you rename keeps your name.
 
 Areas get their names from folders. `~/.claude/attently/areas.md`, which you write, maps each
 folder to a zenborg area; the first match wins:
@@ -173,8 +178,10 @@ area, and tapping it focuses the tab. Ask it to use AskUserQuestion and the tab 
   never writes them); zenborg's `~/.zenborg/phaseConfigs.json` (read-only, phase windows); the
   git branch of the session's directory; the cmux tree (tab and workspace titles, workspace
   descriptions); the last assistant message of each finished turn (from the Stop payload, else
-  the transcript's tail); the transcript's `ai-title` lines (Claude's own topic, found with
-  grep, nothing else of the transcript); the text of your prompt, only to see whether it is
+  the transcript's tail); the transcript's `ai-title`, `custom-title` (`/rename`) and
+  `last-prompt` lines (found with grep, nothing else of the transcript), of which the
+  `ai-title`, last prompt, marker and reply tail (capped, under 1.5 KB) go to Haiku through
+  your own `claude -p --model haiku` when a session's topic moves; the text of your prompt, only to see whether it is
   `/sunrise` or `/sunset`; and cmux's agent event (session, surface, event name) when an
   automation fires. Nothing else about you.
 - **Writes to cmux**: Claude tab titles, tab order within a pane (only when a layer changes),
