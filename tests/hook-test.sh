@@ -656,6 +656,7 @@ check "layer from the tab title glyph" 'grep -q "hasPrefix(\"◉\")" "$SB" && gr
 check "sidebar still reads tabs painted before 0.4.1" 'grep -q "hasPrefix(\"🔊\")" "$SB" && grep -q "hasPrefix(\"🔉\")" "$SB"'
 check "sidebar shows only the new glyphs" '! grep -vE "hasPrefix|contains\(" "$SB" | grep -v "^//" | grep -qE "🔊|🔉|🔇|⏸"'
 check "state from the title glyph, legacy ⏸ included" 'grep -q "contains(\"✋\") || markOf(a).contains(\"⏸\")" "$SB"'
+check "rows show the tab name without its ring mark" '! grep -qE "Text\(a\.title\)|Button\(a\.title\)|\\\\\(a\.title\)" "$SB" && grep -q "Text(nameOf(a))" "$SB"'
 check "a seen focus tab drops to the muted line" 'grep -qF "ForEach(focus.filter { settled(\$0) }) { a in secondaryRow(w, a) }" "$SB"'
 check "sidebar says how many subagents run" 'grep -q "agents running" "$SB" && grep -q "split(separator: \"…\")" "$SB"'
 check "automations mark a finished turn seen on focus" 'jq -e "[.rules[].when.event] | index(\"surface.focused\") and index(\"workspace.selected\")" "$ROOT/cmux/automations.json"'

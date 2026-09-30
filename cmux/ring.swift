@@ -30,6 +30,13 @@ func markOf(_ a) -> String {
   return parts.count > 0 ? parts.first : ""
 }
 
+// The tab name without its ring mark: "leggia" of "◉✋ leggia". Rows already say the state.
+func nameOf(_ a) -> String {
+  if layerOf(a) == "" { return a.title }
+  let rest = a.title.dropFirst(markOf(a).count + 1)
+  return rest.count > 0 ? rest : a.title
+}
+
 func layerOf(_ a) -> String {
   let m = markOf(a)
   if m.hasPrefix("◉") || m.hasPrefix("🔊") { return "focus" }
@@ -91,7 +98,7 @@ func focusRow(_ w, _ a) -> some View {
     HStack(alignment: .top, spacing: 7) {
       Capsule().frame(width: 3, height: 30).foregroundColor("#3B82F6")
       VStack(alignment: .leading, spacing: 2) {
-        Text(a.title).font(.system(size: 12)).fontWeight(.semibold).lineLimit(1).truncationMode(.tail)
+        Text(nameOf(a)).font(.system(size: 12)).fontWeight(.semibold).lineLimit(1).truncationMode(.tail)
         Text(stateText(a))
           .font(.system(size: 11))
           .foregroundColor(waiting(a) ? "#3B82F6" : .secondary)
@@ -111,7 +118,7 @@ func secondaryRow(_ w, _ a) -> some View {
   }) {
     HStack(spacing: 6) {
       Text(waiting(a) ? "✋" : "·").font(.system(size: 10)).foregroundColor("#8B9DC3")
-      Text(a.title).font(.system(size: 11)).foregroundColor(.secondary).lineLimit(1).truncationMode(.tail)
+      Text(nameOf(a)).font(.system(size: 11)).foregroundColor(.secondary).lineLimit(1).truncationMode(.tail)
       Spacer()
     }
     .padding(3)
@@ -141,13 +148,13 @@ func area(_ w) -> some View {
     if background.count > 0 {
       Menu("○ \(background.count - backgroundWaiting.count) parked · \(backgroundWaiting.count) waiting") {
         ForEach(backgroundWaiting) { a in
-          Button("✋ \(a.title)") {
+          Button("✋ \(nameOf(a))") {
             cmux("workspace.select", workspace_id: w.id)
             cmux("surface.focus", surface_id: a.surfaceId)
           }
         }
         ForEach(background.filter { !waiting($0) }) { a in
-          Button(a.title) {
+          Button(nameOf(a)) {
             cmux("workspace.select", workspace_id: w.id)
             cmux("surface.focus", surface_id: a.surfaceId)
           }
