@@ -62,7 +62,7 @@ tab-hunting. Calm technology: the day's priority sits at the center, auxiliary w
 the periphery and moves inward only when it matters.
 
 **Areas are workspaces.** Inside an area, each Claude tab carries its layer and state in its
-title, and the workspace description carries the area's rollup:
+title, and the workspace description carries the area's open loops:
 
 | Layer | Who | Tab | Notifications (with the filter below) |
 |---|---|---|---|
@@ -72,9 +72,9 @@ title, and the workspace description carries the area's rollup:
 
 State glyphs: `✋` waiting on you, `…` working, `…2` two subagents still running (even after the
 turn ended), `✓` done and not yet seen, no glyph once you have seen it (the sidebar row goes
-quiet; a new turn makes it loud again). `✋` always wins. Area rollup: `◉ DC · 2 waiting on you`,
-above whatever description you had written, which stays and comes back when the last session
-leaves.
+quiet; a new turn makes it loud again). `✋` always wins. Each open loop is one description line,
+`◌ ✋ <since> leggia · merge A or B?` (since = when that state began, epoch), above whatever
+description you had written, which stays and comes back when the last session leaves.
 
 The name after the glyphs, for a tab you have not renamed: the session's `/rename` title, else
 the ring's topic, else Claude's `ai-title` (written once, from the first prompt, so it never
@@ -114,19 +114,45 @@ from cmux Feed, Ctrl-4); otherwise its last line can say `✋ waiting on you: <d
 marker is optional: waiting and done come from cmux's own agent events. Only
 `✋ … · blocks: DC` escalates a peripheral session to DC's layer.
 
-The `ring` sidebar shows areas, then their Claude tabs: focus expanded, secondary one line,
-background collapsed per area (`○ N parked · M waiting`). Tap a tab to focus it. It reads the
-painted tab titles, so a session started before the plugin was installed is not listed.
+The `ring` sidebar is Glance, Ask, Click, top to bottom:
+
+```
+◉ Sauron                          Click: settle what waits on you (/sauron)
+Loops                             Glance: what is open, oldest first
+✋ 42m  DC · merge A or B?
+✓ 9m   GC · probe finished
+…2 14m ≃ · Parser rewrite         running subagents after
+⚖️ Themia             + Claude    every workspace, cmux order; + Claude opens a tab there
+  · leggia ✋                      every tab, one muted line: ◉ → ◎ → ○, then the rest
+  · zsh
+🤔 Introspective  ☀️ Sunrise  + Claude   the ritual lever, loud only while due
+```
+
+Loops are `✋` waiting on you, `✓` done and not yet seen, and `…N` running subagents, each with
+its age, area and question (or topic); tap one to go to its tab. Everything else stays muted, in
+colour tokens that follow your theme. It reads the painted tab titles and descriptions, so a
+session started before the plugin was installed shows only as a plain tab.
 
 ### Rituals arrive when you do
 
 No clock, no daemon. Your first prompt in a new day-phase (windows read from zenborg's
 `~/.zenborg/phaseConfigs.json`; 7–13 / 13–19 / 19–3 when absent) leaves one invitation, once
-per phase per day: a ritual row on top of the sidebar (`☀️ Sunrise ready`, `🥗 Midday ready`,
+per phase per day: the ritual's lever turns loud (`☀️ Sunrise ready`, `🥗 Midday ready`,
 `🌙 Sunset ready`) and one quiet notification. Nothing opens and focus never moves until you
-tap it (or a Dock control, or `attently-ring ritual <name>`):
+tap it (or a Dock control, or `attently-ring ritual <name>`).
 
-- **Sunrise** opens a Ritual workspace running `claude "/sunrise"`.
+Each ritual belongs to an area, named in `areas.md`:
+
+```
+ritual sunrise midday sunset → 🤔 Introspective
+```
+
+The lever sits on that area's workspace all phase long, quiet until the ritual is due, and the
+ritual opens as a new tab there (the workspace is created, with that title, if missing). A
+ritual with no area shows its lever on the workspace you were in while it is due, and opens in
+a workspace named after it.
+
+- **Sunrise** runs `claude "/sunrise"`.
 - **Midday** quiets everything to ○ until your next prompt and prints one line of what waits.
 - **Sunset** lists open items per area, then runs `claude "/sunset …"` with them.
 
@@ -135,8 +161,8 @@ Typing `/sunrise` or `/sunset` yourself counts too.
 ### /sauron: settle what waits on you
 
 With ten sessions each ending on a `✋`, the open decisions sprawl across tabs.
-`skills/sauron/open.sh` opens sauron in its own pinned `👁 Sauron` workspace (or focuses it),
-or run `/sauron` in any tab ("what's waiting on me", "consolidate the ring"). It reads every
+The sidebar's `◉ Sauron` (or `skills/sauron/open.sh`) opens sauron in its own pinned
+`👁 Sauron` workspace (or focuses it), or run `/sauron` in any tab ("what's waiting on me", "consolidate the ring"). It reads every
 ring card, ranks the open questions by `today.md` then age, and merges the ones about the same
 thing: two tabs asking about merging `#568` become one decision. A question whose tab has
 closed is a **lost** decision, not noise: it shows on the board too.
@@ -186,8 +212,9 @@ prefix with `!` (`! attently-ring install sidebar`).
 **Watched QA run.** Before selecting it, open the sidebar as a pane you can close:
 `cmux sidebar validate ring && cmux sidebar open ring`. Then, in a scratch workspace, start
 `claude`, send one prompt that names a `today.md` term, and watch: the tab title gains
-`◉…` then `◉✓`, the workspace description shows the rollup, the pane lists the tab under its
-area, and tapping it focuses the tab. Ask it to use AskUserQuestion and the tab turns `✋`.
+`◉…` then `◉✓`, the workspace description and the pane's Loops show a `✓` line, the pane lists
+the tab under its area, and tapping either focuses the tab. Ask it to use AskUserQuestion and
+the tab turns `✋`.
 `attently-ring restore` gives every tab, description and workspace title back;
 `cmux automation logs` shows each firing.
 
@@ -195,7 +222,7 @@ area, and tapping it focuses the tab. Ask it to use AskUserQuestion and the tab 
 
 - **Stores**, only inside cmux, under `~/.claude/attently/`:
   `ring/sessions/<session>.json` (per Claude session: id, directory, transcript path, git
-  branch, marker line, layer, priority key, state, cmux workspace and surface ids, the tab
+  branch, marker line, layer, priority key, state and when it began, cmux workspace and surface ids, the tab
   title it replaced and the one it wrote; deleted at SessionEnd, or after two days),
   `ring/workspaces/<id>.json` (the description you had, to give back, and the workspace title
   the ring set), `rituals.log` (one line per invitation or completed ritual), and `quiet`
@@ -212,8 +239,9 @@ area, and tapping it focuses the tab. Ask it to use AskUserQuestion and the tab 
   automation fires. Nothing else about you.
 - **Writes to cmux**: Claude tab titles, tab order within a pane (only when a layer changes),
   workspace descriptions, workspace titles (from `areas.md`, only where you have not named the
-  workspace), one notification per day-phase, and -- only when you tap a ritual -- a Ritual
-  workspace. It never sends input to a session and never moves focus by itself; only
+  workspace), one notification per day-phase, and -- only when you tap a sidebar Click or run
+  a ritual -- a new tab (ritual, `+ Claude`) or workspace (the ritual's area, `👁 Sauron`). It
+  never sends input to a session and never moves focus by itself; only
   `/sauron` types into a tab or resumes a closed session, and only what you approved.
 - **Blocks nothing.** It never denies a tool or fails a turn. Every hook exits 0; cmux calls
   run detached and time-boxed.
