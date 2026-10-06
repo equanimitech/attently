@@ -1,11 +1,11 @@
 // attently ring -- Glance, Ask, Click over the Claude sessions in cmux.
 //
-// Top to bottom: ◉ Sauron (Click, ring-wide: settle what waits on you), the loops (Glance: ✋
-// waiting on you and ✓ done and not yet seen, oldest first, then …N subagents still running;
-// tap one to go to its tab), then every workspace in cmux order with all its tabs, one muted
-// line each (ring tabs ◉ → ◎ → ○, then the rest). A workspace header carries its Clicks: the
-// ritual lever on the area that owns the day-phase's ritual (loud only while it is due), and
-// + Claude (a new tab running claude in the workspace's folder).
+// Top to bottom: the loops (Glance: ✋ waiting on you and ✓ done and not yet seen, oldest
+// first, then …N subagents still running; tap one to go to its tab), then every workspace in
+// cmux order with all its tabs, one muted line each (ring tabs ◉ → ◎ → ○, then the rest). A
+// workspace header carries its Clicks: the ritual lever on the area that owns the day-phase's
+// ritual (loud only while it is due), and + Claude (a new tab running claude in the
+// workspace's folder).
 //
 // Reads only live cmux state: tab titles and workspace descriptions are the whole bridge from
 // the attently hooks (cmux's `agents` field is empty on the builds we run). A ring tab's title
@@ -162,23 +162,8 @@ func area(_ w) -> some View {
   .background { RoundedRectangle(cornerRadius: 6).foregroundColor(.primary).opacity(w.selected ? 0.06 : 0) }
 }
 
-func sauronLabel() -> some View {
-  HStack {
-    Text("◉ Sauron").font(.system(size: 12)).bold()
-    Spacer()
-  }
-  .padding(4)
-}
-
 ScrollView {
   VStack(alignment: .leading, spacing: 6) {
-    let sauron = workspaces.filter { $0.title == "👁 Sauron" }
-    if sauron.count > 0 {
-      Button(action: { cmux("workspace.select", workspace_id: sauron.first.id) }) { sauronLabel() }
-    } else {
-      Button(action: { cmux("workspace.create", title: "👁 Sauron", initial_input: "'__ATTENTLY_RING__' sauron --here\n", focus: true) }) { sauronLabel() }
-    }
-
     let loops = workspaces.flatMap { w in ringLines(w).filter { isLoop($0) }.map { "\(w.id) \($0)" } }.sorted { loopKey($0) < loopKey($1) }
     if loops.count > 0 {
       Text("Loops").font(.system(size: 10)).foregroundColor(.tertiary).padding(4)

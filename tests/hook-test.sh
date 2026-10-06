@@ -714,16 +714,14 @@ check "a loop taps through to its tab, matched by name in its workspace" 'grep -
 check "every workspace, in cmux order" 'grep -qF "ForEach(workspaces) { w in area(w) }" "$SB"'
 check "all tabs, ◉ then ◎ then ○, then the rest" 'grep -qF "layerOf(\$0) == \"focus\"" "$SB" && grep -qF "layerOf(\$0) == \"secondary\"" "$SB" && grep -qF "layerOf(\$0) == \"background\"" "$SB" && grep -qF "layerOf(\$0) == \"\"" "$SB"'
 check "the whole list scrolls, no cap" 'grep -q "^ScrollView" "$SB" && ! grep -q "\.prefix(" "$SB"'
-check "gone: parked menu, header clock, rollup, area rank" '! grep -qE "parked|clock\.time|rollup|areaRank|Menu\(" "$SB"'
+check "gone: parked menu, header clock, rollup, area rank, Sauron" '! grep -qE "parked|clock\.time|rollup|areaRank|Menu\(|Sauron" "$SB" && [ ! -d "$ROOT/skills/sauron" ]'
 check "colour tokens only, no hex" '! grep -qE "\"#[0-9A-Fa-f]{3,8}\"" "$SB"'
-check "Sauron: focus it, or open it through open.sh" 'grep -qF "\"👁 Sauron\"" "$SB" && grep -qF "'"'"'__ATTENTLY_RING__'"'"' sauron --here" "$SB"'
 check "+ Claude: a new tab running claude in the workspace folder" 'grep -qF "working_directory: w.directory, initial_input: \"claude\\n\"" "$SB"'
 check "ritual lever: a new tab in its area" 'grep -qF "initial_input: \"'"'"'__ATTENTLY_RING__'"'"' ritual \\(ritualOf(l)) --here\\n\"" "$SB"'
 check "a lever is loud only while due" 'grep -qF "l.hasSuffix(\"ready\") ? .accent : .secondary" "$SB"'
 check "automations mark a finished turn seen on focus" 'jq -e "[.rules[].when.event] | index(\"surface.focused\") and index(\"workspace.selected\")" "$ROOT/cmux/automations.json"'
 check "tap focuses the tab" 'grep -qF "cmux(\"surface.focus\", surface_id: t.surfaceId, workspace_id: w.id)" "$SB"'
 check "reads only live cmux context" '! grep -qE "readFile|Process\(|FileManager|\.claude/attently" "$SB"'
-check "attently-ring sauron runs skills/sauron/open.sh" 'bash "$ROOT/bin/attently-ring" sauron --self-test'
 check "automations template is valid JSON" 'jq -e ".version == 1 and (.rules | length) > 0" "$ROOT/cmux/automations.json"'
 check "automations run attently-ring event" 'jq -e "[.rules[].then[].command | test(\"__ATTENTLY_RING__. event\")] | all" "$ROOT/cmux/automations.json"'
 check "automations cover needs_input and AskUserQuestion" 'jq -e "[.rules[].when.event] | index(\"agent.needs_input\") and index(\"agent.hook.AskUserQuestion\")" "$ROOT/cmux/automations.json"'
@@ -769,9 +767,6 @@ for skill in glance-click-ask writing-the-glance scan-first-rendering visual-pit
   check "$skill" '[ -f "$ROOT/skills/'"$skill"'/SKILL.md" ]'
 done
 check "visual-pitch example" '[ -f "$ROOT/skills/visual-pitch/examples/signet-pitch-yanik.md" ]'
-check "sauron" '[ -f "$ROOT/skills/sauron/SKILL.md" ]'
-check "sauron gather self-test" 'bash "$ROOT/skills/sauron/gather.sh" --self-test'
-check "sauron open self-test" 'bash "$ROOT/skills/sauron/open.sh" --self-test'
 
 echo ""
 

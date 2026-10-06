@@ -19,7 +19,6 @@
 #   notify-filter    cmux notifications.hooks filter (policy JSON on stdin)
 #   ritual sunrise|midday|sunset [--here|--ask]
 #   restore          give every painted tab and workspace back its own title / description
-#   sauron [--here]  skills/sauron/open.sh (the sidebar's ◉ Sauron button runs it with --here)
 
 set -u
 
@@ -71,8 +70,7 @@ if [ "${1:-}" = ring ]; then
     notify-filter) ring_notify_filter; exit 0 ;;
     ritual) ring_ritual "${3:-}" "${4:-}" "$RING_BIN"; exit $? ;;
     restore) for s in $(ring_cards | jq -r '.[].session // empty'); do ring_release "$s"; done; exit 0 ;;
-    sauron) exec bash "$ROOT/skills/sauron/open.sh" "${@:3}" ;;
-    *) echo "usage: attently-ring install|event|notify-filter|ritual|restore|sauron" >&2; exit 2 ;;
+    *) echo "usage: attently-ring install|event|notify-filter|ritual|restore" >&2; exit 2 ;;
   esac
 fi
 
