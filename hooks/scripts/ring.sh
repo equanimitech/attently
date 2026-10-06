@@ -311,6 +311,15 @@ ring_ws_unnamed() {
     ring_is_process_title "$1" || printf '%s\n' "$2" | grep -qxF -- "$1"
 }
 
+# The title area $1 gives workspace $2: the bare area, unless the first workspace carrying it
+# (the one ring_ws_titled finds, so the ritual lever stays put) is another; then
+# "<area> · <folder of cwd $4>". $3 every workspace in tree order, "<id>\t<title>" per line.
+ring_ws_area_title() {
+    local first
+    first=$(printf '%s\n' "$3" | awk -F'\t' -v t="$1" '$2 == t { print $1; exit }')
+    if [ -n "$first" ] && [ "$first" != "$2" ]; then printf '%s · %s' "$1" "$(basename "$4")"; else printf '%s' "$1"; fi
+}
+
 # When the current state began: kept while the state holds, now ($4) on a change.
 #   $1 old state, $2 new state, $3 old since, $4 now.
 ring_since() {
@@ -724,11 +733,13 @@ ring_paint_workspace() {
         ring_cmux workspace-action --action set-description --workspace "$ws" --description "$new" >/dev/null
     fi
 
-    # Named once: another session, in another folder, never renames it back and forth.
-    if [ -z "$named" ] && [ -n "$cwd" ]; then
+    # Named once: another session, in another folder, never renames it back and forth. One
+    # workspace per area keeps the bare name; a ring-set duplicate of it (before 0.6.1) heals.
+    if [ -n "$cwd" ]; then
         area=$(ring_area_name "$(ring_areas)" "$cwd" "$HOME")
-        if [ -n "$area" ] && ring_ws_unnamed "$title" "$(jq -r '.panes[]?.surfaces[]?.title // empty' <<<"$node")"; then
-            ring_cmux workspace rename "$ws" --title "$area" >/dev/null
+        if [ -n "$area" ] && { { [ -z "$named" ] && ring_ws_unnamed "$title" "$(jq -r '.panes[]?.surfaces[]?.title // empty' <<<"$node")"; } || [ "$named" = "$area" ]; }; then
+            area=$(ring_ws_area_title "$area" "$ws" "$(jq -r '.. | objects | select(has("panes")) | "\(.id)\t\(.title // "")"' <<<"$tree")" "$cwd")
+            [ "$area" = "$title" ] || ring_cmux workspace rename "$ws" --title "$area" >/dev/null
             named=$area
         fi
     fi

@@ -93,7 +93,9 @@ folder to a zenborg area; the first match wins:
 ```
 
 A session in `~/Developer/equanimitech/attently` names its workspace `≃ attently`; one anywhere
-under `~/Developer/themia` names it `⚖️ Themia`. A folder with no line leaves the title alone.
+under `~/Developer/themia` names it `⚖️ Themia`. One workspace per area carries the bare name
+(the ritual lever finds it there): a second Themia workspace, from `~/Developer/themia/leggia`,
+becomes `⚖️ Themia · leggia`. A folder with no line leaves the title alone.
 The ring names a workspace once, and only one you have not named (its title is empty or just
 follows a tab); your names are never touched, and the ring's comes off when the last session
 leaves.

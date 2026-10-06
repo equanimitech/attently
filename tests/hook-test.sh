@@ -301,6 +301,10 @@ check "area: absolute folder with a trailing slash" '[ "$(ring_area_name "$areas
 check "area: no areas.md -> nothing" '[ -z "$(ring_area_name "" $H/Developer/themia $H)" ]'
 check "workspace unnamed: empty, process title, or one of its tab titles" 'ring_ws_unnamed "" "" && ring_ws_unnamed "✳ Claude Code" "x" && ring_ws_unnamed "◉… Fix" "a${nl}◉… Fix"'
 check "workspace named by the reader" '! ring_ws_unnamed "⚖️ Themia" "Filter spec${nl}○… Themia MCP outage" && ! ring_ws_unnamed "≃ Ring" "◉✋ Ring sidebar fix"'
+tab=$'\t'; wsl="ws-1${tab}⚖️ Themia${nl}ws-2${tab}○✓ Claude Code${nl}ws-3${tab}⚖️ Themia"
+check "area title: bare while no workspace carries it" '[ "$(ring_ws_area_title "⚖️ Themia" ws-2 "ws-2${tab}x" /d/themia/leggia)" = "⚖️ Themia" ]'
+check "area title: taken by another -> area · folder" '[ "$(ring_ws_area_title "⚖️ Themia" ws-2 "$wsl" /d/themia/leggia)" = "⚖️ Themia · leggia" ]'
+check "area title: the first carrying it keeps it, a later duplicate yields" '[ "$(ring_ws_area_title "⚖️ Themia" ws-1 "$wsl" /d/themia)" = "⚖️ Themia" ] && [ "$(ring_ws_area_title "⚖️ Themia" ws-3 "$wsl" /d/themia/minerva)" = "⚖️ Themia · minerva" ]'
 
 echo ""
 
@@ -354,12 +358,14 @@ printf '#!/usr/bin/env bash\n[ -n "${FAKE_CMUX_SLEEP:-}" ] && sleep "$FAKE_CMUX_
   "$CMUX_LOG" "$RING_HOME/tree.json" > "$RING_HOME/cmux"
 chmod +x "$RING_HOME/cmux"
 tree() {  # $1 description, $2.. "surface|title" tabs of workspace ws-1 (one pane); title $WS_TITLE;
-          # $FOCUS names the surface on screen (ws-1 selected, that tab focused)
+          # $FOCUS names the surface on screen (ws-1 selected, that tab focused); $OTHER_WS
+          # "id|title" puts another workspace before ws-1
   local d="$1"; shift
   python3 -c 'import json,sys
-w=sys.argv[1]; f=sys.argv[2]; d=sys.argv[3]; tabs=[t.split("|",1) for t in sys.argv[4:]]
-print(json.dumps({"windows":[{"workspaces":[{"id":"ws-1","title":w,"description":d or None,"selected":bool(f),
-  "panes":[{"surfaces":[{"id":s,"title":t,"focused":s==f} for s,t in tabs]}]}]}]}))' "${WS_TITLE:-DC area}" "${FOCUS:-}" "$d" "$@" > "$RING_HOME/tree.json"
+w=sys.argv[1]; f=sys.argv[2]; d=sys.argv[3]; tabs=[t.split("|",1) for t in sys.argv[5:]]
+o=[{"id":i,"title":t,"panes":[]} for i,t in [sys.argv[4].split("|",1)]] if sys.argv[4] else []
+print(json.dumps({"windows":[{"workspaces":o+[{"id":"ws-1","title":w,"description":d or None,"selected":bool(f),
+  "panes":[{"surfaces":[{"id":s,"title":t,"focused":s==f} for s,t in tabs]}]}]}]}))' "${WS_TITLE:-DC area}" "${FOCUS:-}" "$d" "${OTHER_WS:-}" "$@" > "$RING_HOME/tree.json"
 }
 hook() {  # $1 event, then env assignments; payload on stdin
   local ev="$1"; shift
@@ -603,6 +609,20 @@ check "last session out: cmux's own workspace title comes back" '[[ "$(cat "$CMU
 WS_TITLE="○✓ Claude Code" tree "" "sf-1|○✓ Claude Code"
 payload s7 "$RING_HOME/dev/themia/minerva" "✓ x" | at sf-1
 check "a multi-word label names the workspace as is" 'grep -q "^workspace|rename|ws-1|--title|⚖️ Themia$" "$CMUX_LOG"'
+rm -f "$RING_HOME"/ring/workspaces/*.json
+OTHER_WS="ws-0|⚖️ Themia" WS_TITLE="○✓ Claude Code" tree "" "sf-1|○✓ Claude Code"
+: > "$CMUX_LOG"
+payload s7 "$RING_HOME/dev/themia/leggia" "✓ x" | at sf-1
+check "one workspace per area: a second takes area · folder" 'grep -q "^workspace|rename|ws-1|--title|⚖️ Themia · leggia$" "$CMUX_LOG"'
+echo '{"title_last": "⚖️ Themia"}' > "$RING_HOME/ring/workspaces/ws-1.json"
+OTHER_WS="ws-0|⚖️ Themia" WS_TITLE="⚖️ Themia" tree "" "sf-1|○✓ Claude Code"
+: > "$CMUX_LOG"
+payload s7 "$RING_HOME/dev/themia/leggia" "✓ x" | at sf-1
+check "a duplicate the ring named before heals; the ritual still finds the first" 'grep -q "^workspace|rename|ws-1|--title|⚖️ Themia · leggia$" "$CMUX_LOG" && [ "$(ring_ws_titled "$(cat "$RING_HOME/tree.json")" "⚖️ Themia")" = ws-0 ]'
+rm -f "$RING_HOME"/ring/workspaces/*.json
+: > "$CMUX_LOG"
+payload s7 "$RING_HOME/dev/themia/leggia" "✓ x" | at sf-1
+check "a duplicate the reader named is left alone" '[ "$(ws_renames)" = 0 ]'
 WS_TITLE="my area" tree "" "sf-1|○✓ Claude Code"
 : > "$CMUX_LOG"
 payload s7 "$RING_HOME/eq/attently" "✓ x" | at sf-1
@@ -785,7 +805,7 @@ echo ""
 
 echo "Manifest honesty:"
 PJ="$ROOT/.claude-plugin/plugin.json"
-check "version 0.6.0" '[ "$(jq -r .version "$PJ")" = 0.6.0 ]'
+check "version 0.6.1" '[ "$(jq -r .version "$PJ")" = 0.6.1 ]'
 check "manifest no longer claims to store nothing" '! grep -qi "stores nothing" "$PJ"'
 check "manifest names where the ring stores" 'grep -q "~/.claude/attently/ring/" "$PJ"'
 check "manifest names what it reads" 'grep -q "today.md" "$PJ" && grep -q "phaseConfigs" "$PJ" && grep -q "areas.md" "$PJ" && grep -q "ai-title" "$PJ"'
