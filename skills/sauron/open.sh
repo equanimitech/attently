@@ -8,9 +8,12 @@
 # claude '/attently:sauron', pinned and moved to the top.
 #
 #   open.sh              open or focus
+#   open.sh --here       make the workspace this terminal runs in sauron's: titled, pinned, on
+#                        top, then claude '/attently:sauron' in SAURON_CWD (the ring sidebar's
+#                        ◉ Sauron button creates a workspace running `attently-ring sauron --here`)
 #   open.sh --self-test  runs against a fake cmux; exits non-zero on failure
 #
-# Env: CMUX_BIN, SAURON_TITLE, SAURON_CWD.
+# Env: CMUX_BIN, SAURON_TITLE, SAURON_CWD, SAURON_CLAUDE (tests).
 
 set -u
 
@@ -21,18 +24,36 @@ sauron_ws() {
         jq -r --arg t "$SAURON_TITLE" '[.windows[]?.workspaces[]? | select(.title == $t) | .id] | first // empty'
 }
 
+sauron_cmux() { CMUX=${CMUX_BIN:-$(command -v cmux || printf '/Applications/cmux.app/Contents/Resources/bin/cmux')}; }
+
+sauron_cwd() { if [ -d "${SAURON_CWD:-$HOME/Developer}" ]; then printf '%s' "${SAURON_CWD:-$HOME/Developer}"; else printf '%s' "$HOME"; fi; }
+
+# Pinned and on top.
+sauron_place() {
+    "$CMUX" workspace-action --action pin --workspace "$1" >/dev/null 2>&1
+    "$CMUX" workspace-action --action move-top --workspace "$1" >/dev/null 2>&1
+    return 0
+}
+
+sauron_here() {
+    local ws=${CMUX_WORKSPACE_ID:-}
+    sauron_cmux
+    [ -n "$ws" ] || { echo "sauron: --here runs inside a cmux workspace" >&2; return 1; }
+    "$CMUX" workspace rename "$ws" --title "$SAURON_TITLE" >/dev/null 2>&1
+    sauron_place "$ws"
+    cd "$(sauron_cwd)" && exec ${SAURON_CLAUDE:-claude} '/attently:sauron'
+}
+
 sauron_open() {
-    local ws cwd i
-    CMUX=${CMUX_BIN:-$(command -v cmux || printf '/Applications/cmux.app/Contents/Resources/bin/cmux')}
+    local ws i
+    sauron_cmux
     "$CMUX" tree --all --json --id-format uuids >/dev/null 2>&1 || { echo "sauron: cmux is not reachable" >&2; return 1; }
     ws=$(sauron_ws)
     if [ -n "$ws" ]; then
         "$CMUX" workspace select "$ws"
         return
     fi
-    cwd=${SAURON_CWD:-$HOME/Developer}
-    [ -d "$cwd" ] || cwd=$HOME
-    "$CMUX" workspace create --name "$SAURON_TITLE" --cwd "$cwd" \
+    "$CMUX" workspace create --name "$SAURON_TITLE" --cwd "$(sauron_cwd)" \
         --command "claude '/attently:sauron'" --focus true >/dev/null || return 1
     # `workspace create` returns before the new workspace shows in `tree`, so poll for it.
     # ponytail: fixed ~5s bound (20 x 0.25s); raise it if a slow cmux ever needs longer.
@@ -42,9 +63,7 @@ sauron_open() {
         sleep 0.25
     done
     [ -n "$ws" ] || { echo "sauron: workspace created but not found by title" >&2; return 1; }
-    "$CMUX" workspace-action --action pin --workspace "$ws" >/dev/null 2>&1
-    "$CMUX" workspace-action --action move-top --workspace "$ws" >/dev/null 2>&1
-    return 0
+    sauron_place "$ws"
 }
 
 sauron_self_test() {
@@ -86,10 +105,20 @@ EOF
     rm -f "$d/created"; mkdir "$d/elsewhere"; : >"$d/calls"
     SAURON_CWD="$d/elsewhere" HOME=$d CMUX_BIN="$d/cmux" sauron_open
     ok "SAURON_CWD overrides the start folder" "--cwd $d/elsewhere --command"
+
+    printf '#!/bin/sh\necho "claude $* in $(pwd)" >>"%s/calls"\n' "$d" >"$d/claude"; chmod +x "$d/claude"
+    : >"$d/calls"
+    (CMUX_WORKSPACE_ID=W5 SAURON_CWD="$d/elsewhere" SAURON_CLAUDE="$d/claude" HOME=$d CMUX_BIN="$d/cmux" sauron_here)
+    ok "--here: names this workspace sauron's" "workspace rename W5 --title 👁 Sauron"
+    ok "--here: pins it" "workspace-action --action pin --workspace W5"
+    ok "--here: moves it to the top" "workspace-action --action move-top --workspace W5"
+    ok "--here: runs claude /attently:sauron in the start folder" "claude /attently:sauron in $d/elsewhere"
+    no "--here: creates nothing" "workspace create"
     return "$fail"
 }
 
 case "${1:-}" in
     --self-test) sauron_self_test ;;
+    --here) sauron_here ;;
     *) sauron_open ;;
 esac

@@ -3,7 +3,7 @@
 # attently hook integration tests.
 # Run from the repo root: bash tests/hook-test.sh
 
-set -u
+set -u -o pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCRIPT="$ROOT/hooks/scripts/attently.sh"
@@ -213,13 +213,25 @@ fc='[{"session":"a","surface":"S1","workspace":"W1","state":"done"},{"session":"
 fe1='{"name":"surface.focused","surface_id":"s1","workspace_id":"w1"}'
 fe2='{"name":"workspace.selected","workspace_id":"w5"}'
 check "focus event: the finished, unseen sessions of that surface or workspace" '[ "$(ring_focus_sessions "$fc" "$fe1")" = a ] && [ -z "$(ring_focus_sessions "$fc" "$fe2")" ]'
-cards='[{"layer":"focus","key":"DC","state":"waiting"},{"layer":"background","state":"waiting"},{"layer":"secondary","key":"RB","state":"done"}]'
-check "rollup" '[ "$(ring_rollup "$cards" "" "")" = "◉ DC · 2 waiting on you" ]'
-check "rollup, quiet" '[ "$(ring_rollup "$cards" quiet "")" = "○ · 2 waiting on you" ]'
-one_rb='[{"layer":"secondary","key":"RB","state":"done"}]'
-check "rollup with ritual" '[ "$(ring_rollup "$one_rb" "" "☀️ Sunrise ready")" = "◎ RB · ☀️ Sunrise ready" ]'
-check "description keeps the reader text below" '[ "$(ring_description "◉ DC" "my notes")" = "◉ DC${nl}my notes" ]'
-check "reader part of a painted description" '[ "$(ring_user_description "◉ DC${nl}my notes")" = "my notes" ]'
+check "since: a new state starts now" '[ "$(ring_since working waiting 100 500)" = 500 ]'
+check "since: the same state keeps its start" '[ "$(ring_since waiting waiting 100 500)" = 100 ]'
+check "since: a card without one starts now" '[ "$(ring_since waiting waiting "" 500)" = 500 ]'
+lc='[{"session":"a","state":"waiting","since":100,"base":"leggia","marker":"✋ waiting on you: merge A or B?"},
+ {"session":"b","state":"done","since":50,"base":"probe","marker":"✓ probe finished"},
+ {"session":"c","state":"done","seen":true,"since":10,"base":"quiet"},
+ {"session":"d","state":"working","since":5,"base":"busy"},
+ {"session":"e","state":"done","seen":true,"since":1,"base":"swarm","topic":"Agent swarm","agents":{"x":999990,"y":999980,"z":1}},
+ {"session":"f","state":"waiting","ts":200,"base":"asked"}]'
+loops_want="◌ ✓ 50 probe · probe finished
+◌ ✋ 100 leggia · merge A or B?
+◌ ✋ 200 asked · asked
+◌ …2 999980 swarm · Agent swarm"
+check "loops: ✋ and unseen ✓ oldest first, then running subagents; seen and working are not loops" '[ "$(ring_loop_lines "$lc" 1000000)" = "$loops_want" ]'
+check "loops: none -> nothing" '[ -z "$(ring_loop_lines "[]" 1000000)" ]'
+check "description: ring lines over the reader text" '[ "$(ring_description "◌ ✋ 1 a · x" "my notes")" = "◌ ✋ 1 a · x${nl}my notes" ] && [ "$(ring_description "" "my notes")" = "my notes" ] && [ "$(ring_description "◌ x" "")" = "◌ x" ]'
+painted=$(ring_description "◌ ✋ 1 a · x${nl}◌ ☀️ Sunrise" "my notes${nl}◌ mine, mid-text")
+check "description round trip keeps the reader text, ring lines gone" '[ "$(ring_user_description "$painted")" = "my notes${nl}◌ mine, mid-text" ] && [ -z "$(ring_user_description "◌ ✓ 1 a · x")" ]'
+check "reader part of a rollup painted before 0.6.0" '[ "$(ring_user_description "◉ DC · 1 waiting on you${nl}my notes")" = "my notes" ]'
 check "reader part of a description painted before 0.4.1" '[ "$(ring_user_description "🔊 DC${nl}my notes")" = "my notes" ]'
 check "reader description untouched" '[ "$(ring_user_description "my notes")" = "my notes" ]'
 check "reorder: focus goes first" '[ "$(ring_reorder_args focus s "a -${nl}s focus")" = "--index 0" ]'
@@ -309,6 +321,14 @@ check "typed /sunrise runs the ritual" '[ "$(ring_prompt_ritual "/sunrise")" = s
 check "typed /zenborg:sunset runs it too" '[ "$(ring_prompt_ritual "/zenborg:sunset tomorrow")" = sunset ]'
 check "mentioning /sunrise mid-sentence does not" '[ -z "$(ring_prompt_ritual "please run /sunrise")" ] && [ -z "$(ring_prompt_ritual "/sunrisex")" ]'
 check "ritual status" '[ "$(ring_ritual_status "D MORNING offered w${nl}D MORNING done" D MORNING)" = done ]'
+check "lever: loud while offered, quiet otherwise" '[ "$(ring_ritual_line sunrise offered)" = "☀️ Sunrise ready" ] && [ "$(ring_ritual_line sunrise done)" = "☀️ Sunrise" ] && [ "$(ring_ritual_line sunset "")" = "🌙 Sunset" ]'
+ra="~/Developer/themia   ⚖️ Themia
+ritual sunrise midday → 🤔 Introspective
+ritual	sunset -> 🏡 Home
+ritual sunrise → 🙈 Shadowed"
+check "ritual area from areas.md, first line wins, -> works too" '[ "$(ring_ritual_area "$ra" sunrise)" = "🤔 Introspective" ] && [ "$(ring_ritual_area "$ra" midday)" = "🤔 Introspective" ] && [ "$(ring_ritual_area "$ra" sunset)" = "🏡 Home" ]'
+check "ritual area: none mapped -> nothing" '[ -z "$(ring_ritual_area "~/x  X" sunrise)" ] && [ -z "$(ring_ritual_area "" sunrise)" ] && [ -z "$(ring_ritual_area "ritual sunrisex → A" sunrise)" ]'
+check "ritual areas: every one, once" '[ "$(ring_ritual_area "$ra")" = "🤔 Introspective${nl}🏡 Home${nl}🙈 Shadowed" ]'
 
 echo "Ring notification policy (pure):"
 mute='{"effects":{"desktop":false,"sound":false,"paneFlash":false,"reorderWorkspace":false}}'
@@ -366,19 +386,24 @@ check "stop: classified from the message, focus DC" 'card s1 | jq -e ".layer == 
 check "stop: ✋ marker -> waiting" 'card s1 | jq -e ".state == \"waiting\" and .marker == \"✋ waiting on you: ship it?\""'
 check "tab renamed with glyphs over Claude's title" '[[ "$calls" == *"rename-tab|--workspace|ws-1|--surface|sf-1|◉✋ Fix parser"* ]]'
 check "focus tab moved first in its pane" '[[ "$calls" == *"reorder-surface|--workspace|ws-1|--surface|sf-1|--index|0|--focus|false"* ]]'
-check "workspace rollup keeps the reader description" '[[ "$calls" == *"set-description|--workspace|ws-1|--description|◉ DC · 1 waiting on you${nl}my notes"* ]]'
+check "workspace description: the loop line over the reader description" '[[ "$calls" == *"set-description|--workspace|ws-1|--description|◌ ✋ "[0-9]*" Fix parser · ship it?${nl}my notes"* ]]'
+check "stop: since marks when the wait began" 'card s1 | jq -e ".since > 0 and .since >= .ts - 5"'
 check "no colour, no notification from the ring" '[[ "$calls" != *set-color* && "$calls" != *notify* ]]'
 check "card remembers the original title" 'card s1 | jq -e ".orig_title == \"✳ Fix parser\" and .user_named == false and .base == \"Fix parser\""'
 
-# cmux now shows what we painted
+# cmux now shows what we painted (as a rollup painted before 0.6.0, which reads back too)
 tree "$(printf '◉ DC · 1 waiting on you\nmy notes')" "sf-1|◉✋ Fix parser" "sf-0|shell"
+card s1 | jq '.since = 1' > "$RING_HOME/c.json" && mv "$RING_HOME/c.json" "$RING_HOME/ring/sessions/s1.json"
+payload s1 /tmp/nowhere "Still DEV-1706.${nl}✋ waiting on you: ship it?" | hook stop "${IN_CMUX[@]}"
+check "since: a write without a state change keeps it" 'card s1 | jq -e ".since == 1 and .ts > 1"'
 : > "$CMUX_LOG"
 payload s1 /tmp/nowhere "Refactored the tokenizer." | hook stop "${IN_CMUX[@]}"
 calls=$(cat "$CMUX_LOG")
 check "sticky: a turn without the terms keeps focus" 'card s1 | jq -e ".layer == \"focus\" and .key == \"DC\""'
 check "no marker -> done (state from events, marker optional)" 'card s1 | jq -e ".state == \"done\""'
 check "retitled, not reordered again" '[[ "$calls" == *"◉✓ Fix parser"* && "$calls" != *reorder-surface* ]]'
-check "description repainted, reader text kept" '[[ "$calls" == *"--description|◉ DC${nl}my notes"* ]]'
+check "since: a new state starts anew" 'card s1 | jq -e ".since > 1"'
+check "description repainted, reader text kept" '[[ "$calls" == *"--description|◌ ✓ "[0-9]*" Fix parser · Fix parser${nl}my notes"* ]]'
 
 printf '1. RB — rupture_brutale\n' > "$RING_HOME/today.md"
 payload s1 /tmp/nowhere "Refactored the tokenizer." | hook stop "${IN_CMUX[@]}"
@@ -446,7 +471,7 @@ payload s1 /tmp/nowhere "" "hello" | morning user-submit >/dev/null
 calls=$(cat "$CMUX_LOG")
 check "first prompt of the morning: invitation logged" 'grep -q "^2026-09-24 MORNING offered ws-1$" "$RING_HOME/rituals.log"'
 check "one quiet notification" '[ "$(grep -c "^notify|--title|☀️ Sunrise ready" "$CMUX_LOG")" = 1 ]'
-check "ritual row: the workspace shows Sunrise ready" '[[ "$calls" == *"set-description"*"☀️ Sunrise ready"* ]]'
+check "no area for it: the lever shows on the workspace it was offered in" '[[ "$calls" == *"set-description"*"◌ ☀️ Sunrise ready"* ]]'
 check "nothing opens, focus never moves" '[[ "$calls" != *new-workspace* && "$calls" != *workspace.create* && "$calls" != *select* ]]'
 : > "$CMUX_LOG"
 payload s1 /tmp/nowhere "" "again" | morning user-submit >/dev/null
@@ -459,7 +484,7 @@ check "no ritual in a phase gap" '! grep -q "^notify" "$CMUX_LOG"'
 
 : > "$CMUX_LOG"
 ritual_out=$(ring_cli ritual sunrise)
-check "ritual (by hand) opens a focused Ritual workspace" '[[ "$(cat "$CMUX_LOG")" == *"new-workspace|--name|Ritual|--focus|true|--command|'"'"'$ROOT/bin/attently-ring'"'"' ritual sunrise --here"* ]]'
+check "ritual (by hand), no area for it: a focused workspace named after it" '[[ "$(cat "$CMUX_LOG")" == *"new-workspace|--name|☀️ Sunrise|--focus|true|--command|'"'"'$ROOT/bin/attently-ring'"'"' ritual sunrise --here"* ]]'
 check "--here sunrise runs claude /sunrise" '[ "$(ATTENTLY_CLAUDE=echo ring_cli ritual sunrise --here)" = "/sunrise" ]'
 midday_out=$(ATTENTLY_HOUR=14 ring_cli ritual midday --here)
 check "midday: everything quiet" '[ -f "$RING_HOME/quiet" ]'
@@ -488,6 +513,31 @@ payload s3 /tmp/nowhere "" | hook session-end "${IN_CMUX[@]}"
 calls=$(cat "$CMUX_LOG")
 check "Claude's own title: custom name cleared" '[[ "$calls" == *"tab-action|--action|clear-name|--workspace|ws-1|--tab|sf-1"* ]]'
 check "no reader description: cleared" '[[ "$calls" == *"clear-description|--workspace|ws-1"* ]]'
+
+echo "Ring ritual lever (areas.md):"
+rm -f "$RING_HOME/rituals.log" "$RING_HOME"/ring/sessions/*.json "$RING_HOME"/ring/workspaces/*.json
+printf 'ritual sunrise midday sunset → 🤔 Introspective\n' > "$RING_HOME/areas.md"
+lever() { hook "$1" "${IN_CMUX[@]}" ATTENTLY_HOUR=8 ATTENTLY_TODAY=2026-09-25; }
+WS_TITLE="🤔 Introspective" tree "" "sf-1|✳ Fix parser"
+: > "$CMUX_LOG"
+payload s14 /tmp/nowhere "" "hello" | lever user-submit >/dev/null
+check "the area's workspace carries the phase's lever, loud while due" '[[ "$(cat "$CMUX_LOG")" == *"--description|◌ ☀️ Sunrise ready"* ]]'
+WS_TITLE="🤔 Introspective" tree "◌ ☀️ Sunrise ready" "sf-1|$(card s14 | jq -r .last_title)"
+: > "$CMUX_LOG"
+payload s14 /tmp/nowhere "" "/sunrise" | lever user-submit >/dev/null
+check "done: the lever stays, quiet" '[[ "$(cat "$CMUX_LOG")" == *"--description|◌ ☀️ Sunrise"* && "$(cat "$CMUX_LOG")" != *"Sunrise ready"* ]]'
+WS_TITLE="🤔 Introspective" tree "◌ ☀️ Sunrise" "sf-1|$(card s14 | jq -r .last_title)"
+: > "$CMUX_LOG"
+payload s14 /tmp/nowhere "" | lever session-end
+check "no session left: the area keeps its lever" '! grep -q "description" "$CMUX_LOG" && [ -f "$RING_HOME/ring/workspaces/ws-1.json" ]'
+: > "$CMUX_LOG"
+ring_cli ritual sunrise
+check "ritual (by hand) opens a tab in its area's workspace" '[[ "$(cat "$CMUX_LOG")" == *"new-surface|--workspace|ws-1|--command|'"'"'$ROOT/bin/attently-ring'"'"' ritual sunrise --here|--focus|true"* && "$(cat "$CMUX_LOG")" == *"workspace|select|ws-1"* ]]'
+tree "" "sf-1|✳ Fix parser"
+: > "$CMUX_LOG"
+ring_cli ritual sunrise
+check "...or creates that workspace, titled with the area name" '[[ "$(cat "$CMUX_LOG")" == *"new-workspace|--name|🤔 Introspective|--focus|true|--command|"* && "$(cat "$CMUX_LOG")" != *new-surface* ]]'
+rm -f "$RING_HOME/areas.md" "$RING_HOME/rituals.log" "$RING_HOME"/ring/sessions/*.json "$RING_HOME"/ring/workspaces/*.json
 
 echo "Ring restore of tabs painted before 0.4.1:"
 # A card written by 0.4.0: speaker + ⏸ title. Restore matches the exact title the ring last
@@ -651,19 +701,29 @@ echo ""
 echo "Ring sidebar + templates:"
 SB="$ROOT/cmux/ring.swift"
 check "ring.swift exists" '[ -f "$SB" ]'
-check "rows come from painted tab titles, not w.agents" 'grep -q "w.tabs.filter { layerOf(\$0) != \"\" }" "$SB" && ! grep -q "\.agents" "$SB"'
+check "rows come from painted tab titles, not w.agents" 'grep -q "w.tabs.filter { layerOf(\$0) == " "$SB" && ! grep -q "\.agents" "$SB"'
 check "layer from the tab title glyph" 'grep -q "hasPrefix(\"◉\")" "$SB" && grep -q "hasPrefix(\"◎\")" "$SB"'
 check "sidebar still reads tabs painted before 0.4.1" 'grep -q "hasPrefix(\"🔊\")" "$SB" && grep -q "hasPrefix(\"🔉\")" "$SB"'
 check "sidebar shows only the new glyphs" '! grep -vE "hasPrefix|contains\(" "$SB" | grep -v "^//" | grep -qE "🔊|🔉|🔇|⏸"'
 check "state from the title glyph, legacy ⏸ included" 'grep -q "contains(\"✋\") || markOf(a).contains(\"⏸\")" "$SB"'
-check "rows show the tab name without its ring mark" '! grep -qE "Text\(a\.title\)|Button\(a\.title\)|\\\\\(a\.title\)" "$SB" && grep -q "Text(nameOf(a))" "$SB"'
-check "a seen focus tab drops to the muted line" 'grep -qF "ForEach(focus.filter { settled(\$0) }) { a in secondaryRow(w, a) }" "$SB"'
-check "sidebar says how many subagents run" 'grep -q "agents running" "$SB" && grep -q "split(separator: \"…\")" "$SB"'
+check "rows show the tab name without its ring mark" '! grep -qE "Text\([at]\.title\)|Button\([at]\.title\)|\\\\\([at]\.title\)" "$SB" && grep -q "Text(nameOf(t))" "$SB"'
+check "loops come from the ring lines of each description" 'grep -qF "hasPrefix(\"◌ \")" "$SB" && grep -qF "workspaces.flatMap" "$SB"'
+check "loop age from clock.epoch and the line's since" 'grep -qF "Int(clock.epoch) - Int(word(e, 2))" "$SB"'
+check "loops oldest first, running subagents after" 'grep -qF ".sorted { loopKey(\$0) < loopKey(\$1) }" "$SB" && grep -qF "hasPrefix(\"…\") ? 10000000000 : 0" "$SB"'
+check "a loop taps through to its tab, matched by name in its workspace" 'grep -qF "rest.hasPrefix(\"\\(nameOf(\$0)) · \")" "$SB" && grep -qF "surface_id: hits.first.surfaceId" "$SB"'
+check "every workspace, in cmux order" 'grep -qF "ForEach(workspaces) { w in area(w) }" "$SB"'
+check "all tabs, ◉ then ◎ then ○, then the rest" 'grep -qF "layerOf(\$0) == \"focus\"" "$SB" && grep -qF "layerOf(\$0) == \"secondary\"" "$SB" && grep -qF "layerOf(\$0) == \"background\"" "$SB" && grep -qF "layerOf(\$0) == \"\"" "$SB"'
+check "the whole list scrolls, no cap" 'grep -q "^ScrollView" "$SB" && ! grep -q "\.prefix(" "$SB"'
+check "gone: parked menu, header clock, rollup, area rank" '! grep -qE "parked|clock\.time|rollup|areaRank|Menu\(" "$SB"'
+check "colour tokens only, no hex" '! grep -qE "\"#[0-9A-Fa-f]{3,8}\"" "$SB"'
+check "Sauron: focus it, or open it through open.sh" 'grep -qF "\"👁 Sauron\"" "$SB" && grep -qF "'"'"'__ATTENTLY_RING__'"'"' sauron --here" "$SB"'
+check "+ Claude: a new tab running claude in the workspace folder" 'grep -qF "working_directory: w.directory, initial_input: \"claude\\n\"" "$SB"'
+check "ritual lever: a new tab in its area" 'grep -qF "initial_input: \"'"'"'__ATTENTLY_RING__'"'"' ritual \\(ritualOf(l)) --here\\n\"" "$SB"'
+check "a lever is loud only while due" 'grep -qF "l.hasSuffix(\"ready\") ? .accent : .secondary" "$SB"'
 check "automations mark a finished turn seen on focus" 'jq -e "[.rules[].when.event] | index(\"surface.focused\") and index(\"workspace.selected\")" "$ROOT/cmux/automations.json"'
-check "tap focuses the tab" 'grep -q "cmux(\"surface.focus\", surface_id: a.surfaceId)" "$SB"'
-check "background collapses per area" 'grep -q "parked · " "$SB"'
-check "ritual row opens the ritual on tap" 'grep -q "cmux(\"workspace.create\", title: \"Ritual\"" "$SB"'
+check "tap focuses the tab" 'grep -qF "cmux(\"surface.focus\", surface_id: t.surfaceId, workspace_id: w.id)" "$SB"'
 check "reads only live cmux context" '! grep -qE "readFile|Process\(|FileManager|\.claude/attently" "$SB"'
+check "attently-ring sauron runs skills/sauron/open.sh" 'bash "$ROOT/bin/attently-ring" sauron --self-test'
 check "automations template is valid JSON" 'jq -e ".version == 1 and (.rules | length) > 0" "$ROOT/cmux/automations.json"'
 check "automations run attently-ring event" 'jq -e "[.rules[].then[].command | test(\"__ATTENTLY_RING__. event\")] | all" "$ROOT/cmux/automations.json"'
 check "automations cover needs_input and AskUserQuestion" 'jq -e "[.rules[].when.event] | index(\"agent.needs_input\") and index(\"agent.hook.AskUserQuestion\")" "$ROOT/cmux/automations.json"'
@@ -673,7 +733,7 @@ check "dock template: ☀️ 🥗 🌙" 'jq -e "[.controls[].command] == [\"'"'"
 INST=$(mktemp -d)
 inst() { env CMUX_SIDEBARS_DIR="$INST/sidebars" ATTENTLY_AUTOMATIONS_PATH="$INST/automations.json" ATTENTLY_DOCK_PATH="$INST/dock.json" bash "$ROOT/bin/attently-ring" install "$@"; }
 check "installs the sidebar with the plugin path filled in" 'inst sidebar && grep -q "$ROOT/bin/attently-ring" "$INST/sidebars/ring.swift" && ! grep -q __ATTENTLY_RING__ "$INST/sidebars/ring.swift"'
-check "idempotent when identical" 'inst sidebar | grep -q "already installed"'
+check "idempotent when identical" 'inst sidebar | grep "already installed"'
 echo "// mine" > "$INST/sidebars/ring.swift"
 check "refuses to overwrite a different file" '! inst sidebar 2>/dev/null && [ "$(cat "$INST/sidebars/ring.swift")" = "// mine" ]'
 check "--force-with-backup replaces it, keeping a backup" 'inst sidebar --force-with-backup >/dev/null && grep -q "attently ring" "$INST/sidebars/ring.swift" && grep -q "// mine" "$INST"/sidebars/ring.swift.bak.*'
@@ -730,7 +790,7 @@ echo ""
 
 echo "Manifest honesty:"
 PJ="$ROOT/.claude-plugin/plugin.json"
-check "version 0.5.0" '[ "$(jq -r .version "$PJ")" = 0.5.0 ]'
+check "version 0.6.0" '[ "$(jq -r .version "$PJ")" = 0.6.0 ]'
 check "manifest no longer claims to store nothing" '! grep -qi "stores nothing" "$PJ"'
 check "manifest names where the ring stores" 'grep -q "~/.claude/attently/ring/" "$PJ"'
 check "manifest names what it reads" 'grep -q "today.md" "$PJ" && grep -q "phaseConfigs" "$PJ" && grep -q "areas.md" "$PJ" && grep -q "ai-title" "$PJ"'

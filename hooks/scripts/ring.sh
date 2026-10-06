@@ -13,7 +13,7 @@
 #                                   and the workspace title the ring set (to give back)
 #   rituals.log                     "<day> <PHASE> offered|done [workspace]", one line per step
 #   quiet                           present while midday quiet is on
-# Read, never written: today.md (priorities), areas.md (folder -> area name),
+# Read, never written: today.md (priorities), areas.md (folder -> area name, ritual -> area),
 # ~/.zenborg/phaseConfigs.json (phase windows), and the ai-title / custom-title / last-prompt
 # lines of each transcript. After a turn whose marker moved, Haiku names the session's current
 # topic (ring_retitle).
@@ -311,36 +311,41 @@ ring_ws_unnamed() {
     ring_is_process_title "$1" || printf '%s\n' "$2" | grep -qxF -- "$1"
 }
 
-# Workspace rollup "◉ DC · 3 waiting on you".
-#   $1 JSON array of the workspace's cards ({layer, key, state}), $2 quiet flag,
-#   $3 ritual label to append (optional).
-ring_rollup() {
-    local best key waiting parts
-    best=$(jq -r --arg q "$2" '[.[] | if $q != "" then 3 else ({focus: 1, secondary: 2}[.layer] // 3) end]
-        | min // 3' <<<"$1")
-    key=$(jq -r --arg q "$2" --argjson b "$best" '[.[] | select($q == "")
-        | select(({focus: 1, secondary: 2}[.layer] // 3) == $b) | .key // "" | select(. != "")]
-        | first // ""' <<<"$1")
-    waiting=$(jq '[.[] | select(.state == "waiting")] | length' <<<"$1")
-    case "$best" in 1) parts="◉" ;; 2) parts="◎" ;; *) parts="○" ;; esac
-    [ -n "$key" ] && parts="$parts $key"
-    [ "$waiting" -gt 0 ] && parts="$parts · $waiting waiting on you"
-    [ -n "$3" ] && parts="$parts · $3"
-    printf '%s' "$parts"
+# When the current state began: kept while the state holds, now ($4) on a change.
+#   $1 old state, $2 new state, $3 old since, $4 now.
+ring_since() {
+    if [ "$1" = "$2" ] && [ -n "$3" ]; then printf '%s' "$3"; else printf '%s' "$4"; fi
 }
 
-# The painted description keeps the reader's own text under the rollup line.
+# A workspace's loops, one description line each: "◌ <glyph> <since> <tab base> · <clause>".
+# ✋ waiting and ✓ done-and-unseen, oldest first, then …N running subagents (since = the oldest
+# live one). The clause is the marker's text (after "waiting on you:" for ✋), else the topic,
+# else the tab base. "◌ " marks the line as the ring's (ring_user_description strips it).
+#   $1 JSON array of the workspace's cards, $2 now (epoch).
+ring_loop_lines() {
+    jq -r --argjson now "$2" --argjson max "$RING_AGENT_MAX_AGE" '
+        def clause($p): if startswith($p) then sub("^" + $p + "\\s*(waiting on you:)?\\s*"; "") else "" end;
+        [.[] | (.base // .session // "") as $b
+            | ((.topic // "") | if . == "" then $b else . end) as $t
+            | [.agents // {} | .[] | select(. > $now - $max)] as $ag
+            | (.since // .ts // $now) as $s
+            | if .state == "waiting" then {k: 0, s: $s, g: "✋", c: (.marker // "" | clause("✋"))}
+              elif ($ag | length) > 0 then {k: 1, s: ($ag | min), g: "…\($ag | length)", c: ""}
+              elif .state == "done" and ((.seen // false) | not) then {k: 0, s: $s, g: "✓", c: (.marker // "" | clause("✓"))}
+              else empty end
+            | . + {b: $b, c: (if .c == "" then $t else .c end)}]
+        | sort_by(.k, .s) | .[] | "◌ \(.g) \(.s) \(.b) · \(.c)"' <<<"$1"
+}
+
+# The painted description: the ring's lines over the reader's own text.
 ring_description() {
-    if [ -n "$2" ]; then printf '%s\n%s' "$1" "$2"; else printf '%s' "$1"; fi
+    if [ -n "$1" ] && [ -n "$2" ]; then printf '%s\n%s' "$1" "$2"; else printf '%s' "$1$2"; fi
 }
 
-# The reader's part of a description the ring may have painted (its first line is ours; the
-# speaker glyphs are what it painted before 0.4.1).
+# The reader's part of a description the ring may have painted: the leading "◌ " lines are
+# ours; so is a first line opening with a ring or speaker glyph, the rollup painted before 0.6.0.
 ring_user_description() {
-    case "$1" in
-        "◉"* | "◎"* | "○"* | "🔊"* | "🔉"* | "🔇"*) printf '%s\n' "$1" | sed '1d' ;;
-        *) printf '%s' "$1" ;;
-    esac
+    printf '%s\n' "$1" | awk 'NR == 1 && /^(◉|◎|○|🔊|🔉|🔇)/ { next } !text && /^◌ / { next } { text = 1; print }'
 }
 
 # Where to move a tab whose layer changed, inside its pane: focus first, secondary after the
@@ -421,6 +426,30 @@ ring_phase_of_ritual() {
 }
 ring_ritual_label() {
     case "$1" in sunrise) printf '☀️ Sunrise ready' ;; midday) printf '🥗 Midday ready' ;; sunset) printf '🌙 Sunset ready' ;; esac
+}
+# The lever: "☀️ Sunrise ready" while offered ($2), "☀️ Sunrise" otherwise.
+ring_ritual_line() {
+    local l
+    l=$(ring_ritual_label "$1")
+    if [ "${2:-}" = offered ]; then printf '%s' "$l"; else printf '%s' "${l% ready}"; fi
+}
+
+# The area a ritual opens in, from areas.md lines "ritual sunrise midday sunset → 🤔 Introspective"
+# (the zenborg area name, verbatim; "->" works too). The first line naming it wins. With no
+# ritual ($2 empty): every ritual area, once each.
+# ponytail: areas.md stands in for a ritualAreaId on zenborg's phaseConfigs.
+ring_ritual_area() {
+    printf '%s\n' "$1" | awk -v r="${2:-}" '
+        /^[ \t]*ritual[ \t]/ {
+            at = index($0, "→"); len = length("→")
+            if (!at) { at = index($0, "->"); len = 2 }
+            if (!at) next
+            area = substr($0, at + len); gsub(/^[ \t]+|[ \t]+$/, "", area)
+            names = substr($0, 1, at - 1); gsub(/[ \t]+/, " ", names)
+            if (area == "") next
+            if (r == "") { if (!seen[area]++) print area; next }
+            if (index(names " ", " " r " ")) { print area; exit }
+        }'
 }
 
 # The ritual a typed prompt runs, if any: "/sunrise", "/zenborg:sunset tomorrow...".
@@ -527,13 +556,24 @@ ring_now() {
     [ -n "$phase" ] && printf '%s %s' "$phase" "$(ring_phase_day "$cfg" "$phase" "$hour" "$today" "$yesterday")"
 }
 
-# "<ritual> <workspace>" when an invitation is pending for the current phase.
-ring_pending() {
-    local now phase day
+# The ritual lever workspace $1, titled $2, carries: on the area areas.md gives the current
+# phase's ritual, always (loud while offered); a ritual with no area shows on the workspace its
+# invitation was painted on, while pending.
+# ponytail: no lever in a gap between phases.
+ring_lever() {
+    local now phase day ritual status area
     now=$(ring_now) || return 0
     phase=${now% *}; day=${now#* }
-    [ "$(ring_ritual_status "$(ring_log)" "$day" "$phase")" = offered ] || return 0
-    printf '%s %s' "$(ring_ritual_of_phase "$phase")" "$(ring_ritual_workspace "$(ring_log)" "$day" "$phase")"
+    ritual=$(ring_ritual_of_phase "$phase")
+    [ -n "$ritual" ] || return 0
+    status=$(ring_ritual_status "$(ring_log)" "$day" "$phase")
+    area=$(ring_ritual_area "$(ring_areas)" "$ritual")
+    if [ -n "$area" ]; then
+        [ "$2" = "$area" ] && ring_ritual_line "$ritual" "$status"
+    elif [ "$status" = offered ] && [ "$(ring_ritual_workspace "$(ring_log)" "$day" "$phase")" = "$1" ]; then
+        ring_ritual_line "$ritual" offered
+    fi
+    return 0
 }
 
 # =============================================================================================
@@ -632,6 +672,7 @@ ring_paint() {
         '{workspace: $ws, ws_title: $t, last_title: $last, base: $base, orig_title: $orig,
           user_named: $un, painted_layer: $pl, seen: $seen}')"
     ring_paint_workspace "$ws" "$tree" "$(jq -r '.cwd // empty' <<<"$card")"
+    ring_paint_areas "$tree" "$ws"
 }
 
 # "surface layer" lines for the pane holding $2, in tab order.
@@ -642,11 +683,12 @@ ring_pane_lines() {
         | first | .surfaces[]? | "\(.id) \($l[.id] // "-")"' <<<"$1"
 }
 
-# The workspace description: rollup line over the reader's own text. The workspace title:
-# the area areas.md gives $3 (the painting session's cwd), set once and only over a title the
-# reader did not give. With no ring session left in the workspace, both come back as they were.
+# The workspace description: the ring's lines (loops, ritual lever) over the reader's own text.
+# The workspace title: the area areas.md gives $3 (the painting session's cwd), set once and
+# only over a title the reader did not give. With no ring session and no lever left in the
+# workspace, both come back as they were.
 ring_paint_workspace() {
-    local ws="$1" tree="$2" cwd="${3:-}" cards node cur title wsf saved orig last named area pending label new
+    local ws="$1" tree="$2" cwd="${3:-}" cards node cur title wsf saved orig last named area lever lines new
     cards=$(ring_cards | jq --arg w "$ws" '[.[] | select(.workspace == $w)]')
     node=$(jq -c --arg w "$ws" '[.. | objects | select(.id? == $w and has("panes"))] | first // {}' <<<"$tree")
     cur=$(jq -r '.description // ""' <<<"$node")
@@ -659,7 +701,8 @@ ring_paint_workspace() {
     named=$(jq -r '.title_last // empty' <<<"$saved")
     [ "$title" = "$named" ] || named=""
 
-    if [ "$(jq length <<<"$cards")" -eq 0 ]; then
+    lever=$(ring_lever "$ws" "$title")
+    if [ "$(jq length <<<"$cards")" -eq 0 ] && [ -z "$lever" ]; then
         [ -f "$wsf" ] || return 0
         if [ -n "$orig" ]; then
             ring_cmux workspace-action --action set-description --workspace "$ws" --description "$orig" >/dev/null
@@ -672,11 +715,14 @@ ring_paint_workspace() {
         return 0
     fi
 
-    pending=$(ring_pending)
-    label=""
-    [ -n "$pending" ] && [ "${pending#* }" = "$ws" ] && label=$(ring_ritual_label "${pending%% *}")
-    new=$(ring_description "$(ring_rollup "$cards" "$(ring_quiet)" "$label")" "$orig")
-    [ "$new" = "$cur" ] || ring_cmux workspace-action --action set-description --workspace "$ws" --description "$new" >/dev/null
+    lines=$(ring_loop_lines "$cards" "$(date +%s)")
+    [ -n "$lever" ] && lines=$(ring_description "$lines" "◌ $lever")
+    new=$(ring_description "$lines" "$orig")
+    if [ -z "$new" ]; then
+        [ -z "$cur" ] || ring_cmux workspace-action --action clear-description --workspace "$ws" >/dev/null
+    elif [ "$new" != "$cur" ]; then
+        ring_cmux workspace-action --action set-description --workspace "$ws" --description "$new" >/dev/null
+    fi
 
     # Named once: another session, in another folder, never renames it back and forth.
     if [ -z "$named" ] && [ -n "$cwd" ]; then
@@ -695,6 +741,25 @@ ring_paint_workspace() {
 ring_paint_all() {
     local s
     for s in $(ring_cards | jq -r '.[].session // empty'); do ring_paint "$s"; done
+    ring_paint_areas "$(ring_tree)"
+}
+
+# The workspace titled $2 in tree $1.
+ring_ws_titled() {
+    jq -r --arg t "$2" '[.. | objects | select(has("panes") and .title == $t) | .id] | first // empty' <<<"$1" 2>/dev/null
+}
+
+# Repaint the workspaces areas.md names as ritual areas, other than $2: their lever shows with
+# no ring session in them, and follows the phase. $1 tree.
+ring_paint_areas() {
+    local area ws
+    [ -n "$1" ] || return 0
+    while IFS= read -r area; do
+        [ -n "$area" ] || continue
+        ws=$(ring_ws_titled "$1" "$area")
+        [ -n "$ws" ] && [ "$ws" != "${2:-}" ] && ring_paint_workspace "$ws" "$1"
+    done <<<"$(ring_ritual_area "$(ring_areas)")"
+    return 0
 }
 
 # Give a session's tab back its own title and drop its card; the workspace description is
@@ -726,17 +791,21 @@ ring_session_id() { jq -r '.session_id // empty' <<<"$1" 2>/dev/null | tr -cd 'A
 
 # UserPromptSubmit: the session is working; a new day-phase gets its ritual invitation.
 ring_prompt() {
-    local payload="$1" session card was_quiet prompt
+    local payload="$1" session card was_quiet prompt old st now
     session=$(ring_session_id "$payload")
     [ -n "$session" ] || return 0
     card=$(ring_card "$session")
+    old=$(jq -r '.state // empty' <<<"$card")
+    st=$(ring_next_state "$old" prompt)
+    now=$(date +%s)
     ring_card_merge "$session" "$(jq -n --arg s "$session" --arg cwd "$(jq -r '.cwd // empty' <<<"$payload")" \
         --arg tp "$(jq -r '.transcript_path // empty' <<<"$payload")" \
         --arg sf "${CMUX_SURFACE_ID:-$(jq -r '.surface // empty' <<<"$card")}" \
-        --arg ws "${CMUX_WORKSPACE_ID:-$(jq -r '.workspace // empty' <<<"$card")}" \
-        --arg st "$(ring_next_state "$(jq -r '.state // empty' <<<"$card")" prompt)" \
-        --arg layer "$(jq -r '.layer // "background"' <<<"$card")" --argjson ts "$(date +%s)" \
-        '{session: $s, cwd: $cwd, transcript: $tp, surface: $sf, workspace: $ws, state: $st, layer: $layer, ts: $ts}')" || return 0
+        --arg ws "${CMUX_WORKSPACE_ID:-$(jq -r '.workspace // empty' <<<"$card")}" --arg st "$st" \
+        --arg layer "$(jq -r '.layer // "background"' <<<"$card")" --argjson ts "$now" \
+        --argjson since "$(ring_since "$old" "$st" "$(jq -r '.since // empty' <<<"$card")" "$now")" \
+        '{session: $s, cwd: $cwd, transcript: $tp, surface: $sf, workspace: $ws, state: $st, layer: $layer,
+          ts: $ts, since: $since}')" || return 0
 
     was_quiet=$(ring_quiet)
     rm -f "$ATTENTLY_HOME/quiet"
@@ -745,8 +814,8 @@ ring_prompt() {
     if [ -n "$was_quiet" ]; then ring_background ring_paint_all; else ring_background ring_paint "$session"; fi
 }
 
-# The first prompt in a new day-phase invites that phase's ritual, once: a ritual row in the
-# ring and one notification. Nothing opens and focus never moves.
+# The first prompt in a new day-phase invites that phase's ritual, once: its lever in the ring
+# goes loud, and one notification. Nothing opens and focus never moves.
 ring_ritual_on_prompt() {
     local prompt="$1" ws="$2" r now phase day ritual
     r=$(ring_prompt_ritual "$prompt")
@@ -762,12 +831,12 @@ ring_ritual_on_prompt() {
     [ -z "$(ring_ritual_status "$(ring_log)" "$day" "$phase")" ] || return 0
     ring_log_add "$day $phase offered $ws"
     ring_background ring_cmux notify --title "$(ring_ritual_label "$ritual")" \
-        --body "When you are ready: the ring's ritual row, or the Dock."
+        --body "When you are ready: its lever in the ring, or the Dock."
 }
 
 # Stop: classify the session (sticky), record its turn-end state, repaint.
 ring_stop() {
-    local payload="$1" session cwd tp msg marker branch blocks today hash card old_layer cls layer key
+    local payload="$1" session cwd tp msg marker branch blocks today hash card old_layer cls layer key old st now
     session=$(ring_session_id "$payload")
     [ -n "$session" ] || return 0
     cwd=$(jq -r '.cwd // empty' <<<"$payload")
@@ -791,13 +860,16 @@ ring_stop() {
         key=$(jq -r '.key // empty' <<<"$card")
     fi
 
+    old=$(jq -r '.state // empty' <<<"$card")
+    st=$(ring_next_state "$old" "stop:$(ring_marker_state "$marker")")
+    now=$(date +%s)
     ring_card_merge "$session" "$(jq -n --arg s "$session" --arg cwd "$cwd" --arg tp "$tp" --arg branch "$branch" \
         --arg marker "$marker" --arg blocks "$blocks" --arg layer "$layer" --arg key "$key" --arg hash "$hash" \
-        --arg st "$(ring_next_state "$(jq -r '.state // empty' <<<"$card")" "stop:$(ring_marker_state "$marker")")" \
+        --arg st "$st" --argjson since "$(ring_since "$old" "$st" "$(jq -r '.since // empty' <<<"$card")" "$now")" \
         --arg sf "${CMUX_SURFACE_ID:-$(jq -r '.surface // empty' <<<"$card")}" \
-        --arg ws "${CMUX_WORKSPACE_ID:-$(jq -r '.workspace // empty' <<<"$card")}" --argjson ts "$(date +%s)" \
+        --arg ws "${CMUX_WORKSPACE_ID:-$(jq -r '.workspace // empty' <<<"$card")}" --argjson ts "$now" \
         '{session: $s, cwd: $cwd, transcript: $tp, branch: $branch, marker: $marker, blocks: $blocks, layer: $layer,
-          key: $key, today_hash: $hash, state: $st, surface: $sf, workspace: $ws, ts: $ts, seen: false}')" || return 0
+          key: $key, today_hash: $hash, state: $st, since: $since, surface: $sf, workspace: $ws, ts: $ts, seen: false}')" || return 0
 
     ring_background ring_after_stop "$session" "$(ring_clip tail 800 "$msg")"
     # Cards of sessions that died without SessionEnd.
@@ -893,9 +965,9 @@ ring_event() {
     state=$(jq -r '.state // empty' <<<"$card")
     next=$(ring_next_state "$state" "$kind")
     [ "$next" != "$state" ] || return 0
-    ring_card_merge "$session" "$(jq -n --arg st "$next" \
+    ring_card_merge "$session" "$(jq -n --arg st "$next" --argjson since "$(date +%s)" \
         --arg sf "$(jq -r '(.payload // .event.payload).surface_id // .surface_id // empty' <<<"$json")" \
-        '{state: $st} + (if $sf != "" then {surface: $sf} else {} end)')"
+        '{state: $st, since: $since} + (if $sf != "" then {surface: $sf} else {} end)')"
     ring_paint "$session"
 }
 
@@ -920,13 +992,15 @@ ring_notify_filter() {
         "$(jq -r '.agent.category // empty' <<<"$input")" "$(ring_quiet)"
 }
 
-# Rituals, run by hand (sidebar row, Dock, CLI).
-#   ritual <name>          open a "Ritual" workspace running `ritual <name> --here` (focuses it:
-#                          the reader asked for it)
+# Rituals, run by hand (Dock, CLI; the sidebar lever opens the tab itself).
+#   ritual <name>          open a tab running `ritual <name> --here` in the workspace of its area
+#                          (areas.md), creating that workspace, titled with the area name, if
+#                          missing; with no area, a workspace named after the ritual. Focuses
+#                          it: the reader asked for it.
 #   ritual <name> --here   run it in this terminal
 #   ritual <name> --ask    Dock control: wait for Enter, then open it; repeat
 ring_ritual() {
-    local name="$1" mode="${2:-}" self="$3" now cards items
+    local name="$1" mode="${2:-}" self="$3" now cards items area ws cmd
     case "$name" in sunrise | midday | sunset) ;; *) echo "usage: attently-ring ritual sunrise|midday|sunset [--here|--ask]" >&2; return 2 ;; esac
     case "$mode" in
         --ask)
@@ -935,8 +1009,17 @@ ring_ritual() {
             done
             return 0 ;;
         "")
-            RING_CMUX_TIMEOUT=10 ring_cmux new-workspace --name Ritual --focus true \
-                --command "'$self' ritual $name --here" >/dev/null || { echo "cmux did not answer" >&2; return 1; }
+            area=$(ring_ritual_area "$(ring_areas)" "$name")
+            cmd="'$self' ritual $name --here"
+            ws=""
+            [ -n "$area" ] && ws=$(ring_ws_titled "$(ring_tree)" "$area")
+            if [ -n "$ws" ]; then
+                RING_CMUX_TIMEOUT=10 ring_cmux new-surface --workspace "$ws" --command "$cmd" --focus true >/dev/null &&
+                    ring_cmux workspace select "$ws" >/dev/null
+            else
+                RING_CMUX_TIMEOUT=10 ring_cmux new-workspace --name "${area:-$(ring_ritual_line "$name")}" --focus true \
+                    --command "$cmd" >/dev/null
+            fi || { echo "cmux did not answer" >&2; return 1; }
             return 0 ;;
     esac
     now=$(ring_now "$(ring_phase_of_ritual "$name")")

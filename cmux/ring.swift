@@ -1,27 +1,45 @@
-// attently ring -- your areas, and the Claude tabs inside each, ranked by what deserves you now.
+// attently ring -- Glance, Ask, Click over the Claude sessions in cmux.
 //
-// Center to periphery. Each workspace is an area. Inside it, focus tabs get a full row until
-// you have seen their finished turn, then one muted line like secondary tabs; background tabs
-// collapse into one menu. Tap a tab to focus it.
-// While a day-phase ritual waits for you, one ritual row sits on top; nothing opens until you
-// tap it.
+// Top to bottom: ◉ Sauron (Click, ring-wide: settle what waits on you), the loops (Glance: ✋
+// waiting on you and ✓ done and not yet seen, oldest first, then …N subagents still running;
+// tap one to go to its tab), then every workspace in cmux order with all its tabs, one muted
+// line each (ring tabs ◉ → ◎ → ○, then the rest). A workspace header carries its Clicks: the
+// ritual lever on the area that owns the day-phase's ritual (loud only while it is due), and
+// + Claude (a new tab running claude in the workspace's folder).
 //
-// Reads only live cmux state, and only tab titles and workspace descriptions: cmux's `agents`
-// field is empty on the builds we run, so the attently hooks' painting is the whole bridge.
-// A ring tab's title opens with its layer glyph (◉ focus, ◎ secondary, ○ background) and its
-// state glyph (✋ waiting on you, … working, …2 two subagents still running, ✓ done and not yet
-// seen, none once seen), e.g. "○✋ Claude Code"; a workspace
-// description opens with its area rollup ("◉ DC · 2 waiting on you"). A tab with no ring glyph
-// is not in the ring (sessions started before the plugin was installed stay unpainted).
+// Reads only live cmux state: tab titles and workspace descriptions are the whole bridge from
+// the attently hooks (cmux's `agents` field is empty on the builds we run). A ring tab's title
+// opens with its layer glyph (◉ focus, ◎ secondary, ○ background) and state glyph, e.g.
+// "○✋ Claude Code"; a tab with no ring glyph is not in the ring. A workspace description opens
+// with the ring's lines, "◌ " then either a loop, "<glyph> <since epoch> <tab name> · <clause>"
+// (glyph ✋, ✓ or …N), or a ritual lever, "☀️ Sunrise ready" while due, "☀️ Sunrise" otherwise.
 // 🔊 / 🔉 / 🔇 and ⏸ are still read: tabs painted before 0.4.1 keep them until their next turn.
 
 func desc(_ w) -> String {
   return w.description != nil ? w.description : ""
 }
 
-func rollup(_ w) -> String {
-  let lines = desc(w).split(separator: "\n")
-  return lines.count > 0 ? lines.first : ""
+// The ring's lines of a workspace description, without their "◌ ".
+func ringLines(_ w) -> [Any] {
+  return desc(w).split(separator: "\n").filter { $0.hasPrefix("◌ ") }.map { $0.dropFirst(2) }
+}
+
+// Word i of a line, split on single spaces.
+func word(_ s, _ i) -> String {
+  let parts = s.split(separator: " ")
+  return parts.count > i ? parts[i] : ""
+}
+
+func isLoop(_ l) -> Bool {
+  let g = word(l, 0)
+  return g == "✋" || g == "✓" || g.hasPrefix("…")
+}
+
+func ritualOf(_ l) -> String {
+  if l.contains("Sunrise") { return "sunrise" }
+  if l.contains("Midday") { return "midday" }
+  if l.contains("Sunset") { return "sunset" }
+  return ""
 }
 
 // The ring mark of a tab: "◉✋" of "◉✋ leggia".
@@ -30,7 +48,7 @@ func markOf(_ a) -> String {
   return parts.count > 0 ? parts.first : ""
 }
 
-// The tab name without its ring mark: "leggia" of "◉✋ leggia". Rows already say the state.
+// The tab name without its ring mark: "leggia" of "◉✋ leggia".
 func nameOf(_ a) -> String {
   if layerOf(a) == "" { return a.title }
   let rest = a.title.dropFirst(markOf(a).count + 1)
@@ -45,161 +63,131 @@ func layerOf(_ a) -> String {
   return ""
 }
 
-func claudes(_ w) -> [Any] {
-  return w.tabs.filter { layerOf($0) != "" }
-}
-
-func areaRank(_ w) -> Int {
-  let r = rollup(w)
-  if r.hasPrefix("◉") { return 1 }
-  if r.hasPrefix("🔊") { return 1 }
-  if r.hasPrefix("◎") { return 2 }
-  if r.hasPrefix("🔉") { return 2 }
-  return 3
-}
-
 func waiting(_ a) -> Bool {
   return markOf(a).contains("✋") || markOf(a).contains("⏸")
 }
 
-// No state glyph: the reader has seen the finished turn, so the row goes quiet.
-func settled(_ a) -> Bool {
-  let m = markOf(a)
-  return !waiting(a) && !m.contains("…") && !m.contains("✓")
+// A loop of the whole ring is "<workspace id> <glyph> <since> <tab name> · <clause>". Sort key:
+// its since, running subagents after every ✋ and ✓.
+func loopKey(_ e) -> Int {
+  return (word(e, 1).hasPrefix("…") ? 10000000000 : 0) + Int(word(e, 2))
 }
 
-// "◉…2" -> "… 2 agents running".
-func stateText(_ a) -> String {
-  if waiting(a) { return "✋ waiting on you" }
-  let n = markOf(a).split(separator: "…")
-  if markOf(a).contains("…") && n.count > 1 { return n.last == "1" ? "… 1 agent running" : "… \(n.last) agents running" }
-  if markOf(a).contains("…") { return "… working" }
-  return "✓ done"
+func loopLabel(_ g, _ ago, _ area, _ clause) -> some View {
+  HStack(spacing: 6) {
+    Text(g).font(.system(size: 11)).foregroundColor(.accent)
+    Text(ago).font(.system(size: 10)).monospacedDigit().foregroundColor(.secondary)
+    Text("\(area) · \(clause)").font(.system(size: 11)).lineLimit(1).truncationMode(.tail)
+    Spacer()
+  }
+  .padding(4)
+  .background { RoundedRectangle(cornerRadius: 6).foregroundColor(.accent).opacity(0.08) }
 }
 
-func ritualOf(_ d) -> String {
-  if d.contains("☀️ Sunrise ready") { return "sunrise" }
-  if d.contains("🥗 Midday ready") { return "midday" }
-  if d.contains("🌙 Sunset ready") { return "sunset" }
-  return ""
-}
-
-func ritualLabel(_ r) -> String {
-  if r == "sunrise" { return "☀️ Sunrise ready" }
-  if r == "midday" { return "🥗 Midday ready" }
-  return "🌙 Sunset ready"
-}
-
-func focusRow(_ w, _ a) -> some View {
-  Button(action: {
-    cmux("workspace.select", workspace_id: w.id)
-    cmux("surface.focus", surface_id: a.surfaceId)
-  }) {
-    HStack(alignment: .top, spacing: 7) {
-      Capsule().frame(width: 3, height: 30).foregroundColor("#3B82F6")
-      VStack(alignment: .leading, spacing: 2) {
-        Text(nameOf(a)).font(.system(size: 12)).fontWeight(.semibold).lineLimit(1).truncationMode(.tail)
-        Text(stateText(a))
-          .font(.system(size: 11))
-          .foregroundColor(waiting(a) ? "#3B82F6" : .secondary)
-          .lineLimit(1)
-      }
-      Spacer()
+// Tap goes to the loop's tab, matched by its name within the workspace; else to the workspace.
+func loopRow(_ e) -> some View {
+  let w = workspaces.filter { $0.id == word(e, 0) }.first
+  let rest = e.dropFirst(word(e, 0).count + word(e, 1).count + word(e, 2).count + 3)
+  let hits = w.tabs.filter { $0.surfaceId != nil && rest.hasPrefix("\(nameOf($0)) · ") }
+  let clause = hits.count > 0 ? rest.dropFirst(nameOf(hits.first).count + 3) : rest
+  let age = Int(clock.epoch) - Int(word(e, 2))
+  let ago = age < 3600 ? "\(Int(age / 60))m" : "\(Int(age / 3600))h"
+  return VStack(alignment: .leading, spacing: 0) {
+    if hits.count > 0 {
+      Button(action: {
+        cmux("workspace.select", workspace_id: w.id)
+        cmux("surface.focus", surface_id: hits.first.surfaceId, workspace_id: w.id)
+      }) { loopLabel(word(e, 1), ago, w.title, clause) }
+    } else {
+      Button(action: { cmux("workspace.select", workspace_id: w.id) }) { loopLabel(word(e, 1), ago, w.title, clause) }
     }
-    .padding(5)
-    .background { RoundedRectangle(cornerRadius: 6).foregroundColor("#3B82F6").opacity(w.selected ? 0.16 : 0.06) }
   }
 }
 
-func secondaryRow(_ w, _ a) -> some View {
+func tabRow(_ w, _ t) -> some View {
   Button(action: {
     cmux("workspace.select", workspace_id: w.id)
-    cmux("surface.focus", surface_id: a.surfaceId)
+    cmux("surface.focus", surface_id: t.surfaceId, workspace_id: w.id)
   }) {
     HStack(spacing: 6) {
-      Text(waiting(a) ? "✋" : "·").font(.system(size: 10)).foregroundColor("#8B9DC3")
-      Text(nameOf(a)).font(.system(size: 11)).foregroundColor(.secondary).lineLimit(1).truncationMode(.tail)
+      Text(waiting(t) ? "✋" : "·").font(.system(size: 10)).foregroundColor(.tertiary)
+      Text(nameOf(t)).font(.system(size: 11)).foregroundColor(.secondary).lineLimit(1).truncationMode(.tail)
       Spacer()
     }
     .padding(3)
   }
 }
 
+// A ritual lever opens the ritual in a new tab of its area's workspace.
+func lever(_ w, _ l) -> some View {
+  Button(action: {
+    cmux("workspace.select", workspace_id: w.id)
+    cmux("surface.create", workspace_id: w.id, initial_input: "'__ATTENTLY_RING__' ritual \(ritualOf(l)) --here\n", focus: true)
+  }) {
+    Text(l)
+      .font(.system(size: 10))
+      .foregroundColor(l.hasSuffix("ready") ? .accent : .secondary)
+      .padding(2)
+      .background { RoundedRectangle(cornerRadius: 4).foregroundColor(.accent).opacity(l.hasSuffix("ready") ? 0.15 : 0) }
+  }
+}
+
 func area(_ w) -> some View {
-  let tabs = claudes(w)
-  let focus = tabs.filter { layerOf($0) == "focus" }
-  let secondary = tabs.filter { layerOf($0) == "secondary" }
-  let background = tabs.filter { layerOf($0) == "background" }
-  let backgroundWaiting = background.filter { waiting($0) }
-  return VStack(alignment: .leading, spacing: 3) {
-    Button(action: { cmux("workspace.select", workspace_id: w.id) }) {
-      HStack(spacing: 6) {
-        Circle().frame(width: 7, height: 7).foregroundColor(w.color != nil ? w.color : "#9CA3AF")
+  let levers = ringLines(w).filter { !isLoop($0) && ritualOf($0) != "" }
+  return VStack(alignment: .leading, spacing: 2) {
+    HStack(spacing: 6) {
+      if let c = w.color {
+        Circle().frame(width: 7, height: 7).foregroundColor(c)
+      } else {
+        Circle().frame(width: 7, height: 7).foregroundColor(.tertiary)
+      }
+      Button(action: { cmux("workspace.select", workspace_id: w.id) }) {
         Text(w.title).font(.system(size: 12)).bold().lineLimit(1).truncationMode(.tail)
-        Spacer()
-        Text(rollup(w)).font(.system(size: 10)).foregroundColor(.secondary).lineLimit(1)
+      }
+      Spacer()
+      ForEach(levers) { l in lever(w, l) }
+      Button(action: {
+        cmux("workspace.select", workspace_id: w.id)
+        cmux("surface.create", workspace_id: w.id, working_directory: w.directory, initial_input: "claude\n", focus: true)
+      }) {
+        Text("+ Claude").font(.system(size: 10)).foregroundColor(.secondary)
       }
     }
-    ForEach(focus.filter { waiting($0) }) { a in focusRow(w, a) }
-    ForEach(focus.filter { !waiting($0) && !settled($0) }) { a in focusRow(w, a) }
-    ForEach(focus.filter { settled($0) }) { a in secondaryRow(w, a) }
-    ForEach(secondary.filter { waiting($0) }) { a in secondaryRow(w, a) }
-    ForEach(secondary.filter { !waiting($0) }) { a in secondaryRow(w, a) }
-    if background.count > 0 {
-      Menu("○ \(background.count - backgroundWaiting.count) parked · \(backgroundWaiting.count) waiting") {
-        ForEach(backgroundWaiting) { a in
-          Button("✋ \(nameOf(a))") {
-            cmux("workspace.select", workspace_id: w.id)
-            cmux("surface.focus", surface_id: a.surfaceId)
-          }
-        }
-        ForEach(background.filter { !waiting($0) }) { a in
-          Button(nameOf(a)) {
-            cmux("workspace.select", workspace_id: w.id)
-            cmux("surface.focus", surface_id: a.surfaceId)
-          }
-        }
-      }
-      .font(.system(size: 11))
-      .foregroundColor("#6B7280")
-    }
+    ForEach(w.tabs.filter { layerOf($0) == "focus" }) { t in tabRow(w, t) }
+    ForEach(w.tabs.filter { layerOf($0) == "secondary" }) { t in tabRow(w, t) }
+    ForEach(w.tabs.filter { layerOf($0) == "background" }) { t in tabRow(w, t) }
+    ForEach(w.tabs.filter { layerOf($0) == "" }) { t in tabRow(w, t) }
   }
   .padding(4)
+  .background { RoundedRectangle(cornerRadius: 6).foregroundColor(.primary).opacity(w.selected ? 0.06 : 0) }
 }
 
-VStack(alignment: .leading, spacing: 6) {
+func sauronLabel() -> some View {
   HStack {
-    Text("Ring").font(.system(size: 13)).bold()
+    Text("◉ Sauron").font(.system(size: 12)).bold()
     Spacer()
-    Text(clock.time).font(.system(size: 10, design: .monospaced)).foregroundColor(.tertiary)
   }
   .padding(4)
-
-  let ws = workspaces.prefix(60)
-  let rituals = ws.filter { ritualOf(desc($0)) != "" }
-  if rituals.count > 0 {
-    let r = ritualOf(desc(rituals.first))
-    Button(action: {
-      cmux("workspace.create", title: "Ritual", initial_input: "'__ATTENTLY_RING__' ritual \(r) --here\n", focus: true)
-    }) {
-      HStack {
-        Text(ritualLabel(r)).font(.system(size: 12))
-        Spacer()
-        Text("begin").font(.system(size: 10)).foregroundColor(.secondary)
-      }
-      .padding(6)
-      .background { RoundedRectangle(cornerRadius: 6).foregroundColor("#F59E0B").opacity(0.10) }
-    }
-  }
-  Divider()
-
-  let areas = ws.filter { claudes($0).count > 0 }
-  if areas.count == 0 {
-    Text("No Claude sessions").font(.system(size: 11)).foregroundColor(.tertiary).padding(4)
-  }
-  ForEach(areas.filter { areaRank($0) == 1 }) { w in area(w) }
-  ForEach(areas.filter { areaRank($0) == 2 }) { w in area(w) }
-  ForEach(areas.filter { areaRank($0) == 3 }) { w in area(w) }
-  Spacer()
 }
-.padding(6)
+
+ScrollView {
+  VStack(alignment: .leading, spacing: 6) {
+    let sauron = workspaces.filter { $0.title == "👁 Sauron" }
+    if sauron.count > 0 {
+      Button(action: { cmux("workspace.select", workspace_id: sauron.first.id) }) { sauronLabel() }
+    } else {
+      Button(action: { cmux("workspace.create", title: "👁 Sauron", initial_input: "'__ATTENTLY_RING__' sauron --here\n", focus: true) }) { sauronLabel() }
+    }
+
+    let loops = workspaces.flatMap { w in ringLines(w).filter { isLoop($0) }.map { "\(w.id) \($0)" } }.sorted { loopKey($0) < loopKey($1) }
+    if loops.count > 0 {
+      Text("Loops").font(.system(size: 10)).foregroundColor(.tertiary).padding(4)
+      ForEach(loops) { e in loopRow(e) }
+    }
+    Divider()
+
+    ForEach(workspaces) { w in area(w) }
+    Spacer()
+  }
+  .padding(6)
+}
