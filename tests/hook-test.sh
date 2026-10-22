@@ -841,11 +841,17 @@ mkfx() { printf '{"type":"assistant","message":{"usage":{"input_tokens":5,"cache
 mkfx "$HT/hi.jsonl" 160000; mkfx "$HT/lo.jsonl" 100000
 submit() { printf '{"session_id":"%s","transcript_path":"%s"%s}' "$1" "$2" "${3:-}" | bash "$SCRIPT" hook user-submit 2>/dev/null; }
 first=$(submit s1 "$HT/hi.jsonl"); second=$(submit s1 "$HT/hi.jsonl")
-check "nudges above 150k" '[[ "$first" == *"context 162k — hand off?"* ]]'
-check "nudges once per session" '[[ "$second" != *"hand off?"* ]]'
-check "silent below 150k" '[[ "$(submit s2 "$HT/lo.jsonl")" != *"hand off?"* ]]'
-check "silent when ATTENTLY_HANDOFF_AT=400000" '[[ "$(ATTENTLY_HANDOFF_AT=400000 submit s3 "$HT/hi.jsonl")" != *"hand off?"* ]]'
-check "silent inside a subagent (agent_id)" '[[ "$(submit s4 "$HT/hi.jsonl" ",\"agent_id\":\"a1\"")" != *"hand off?"* ]]'
+check "nudges above 150k" '[[ "$first" == *"context 162k — phase boundary?"* ]]'
+mkfx "$HT/m.jsonl" 213000; mkfx "$HT/n.jsonl" 228000
+r1=$(submit s5 "$HT/hi.jsonl"); r2=$(submit s5 "$HT/m.jsonl"); r2b=$(submit s5 "$HT/m.jsonl"); r3=$(submit s5 "$HT/n.jsonl")
+check "re-nudges after 60k growth (215k)" '[[ "$r1" == *"phase boundary?"* && "$r2" == *"context 215k"* ]]'
+check "no repeat at the same step, no third nudge at 230k" '[[ "$r2b" != *"phase boundary?"* && "$r3" != *"phase boundary?"* ]]'
+e1=$(ATTENTLY_HANDOFF_EVERY=0 submit s6 "$HT/hi.jsonl"); e2=$(ATTENTLY_HANDOFF_EVERY=0 submit s6 "$HT/m.jsonl")
+check "EVERY=0 fires only once" '[[ "$e1" == *"phase boundary?"* && "$e2" != *"phase boundary?"* ]]'
+check "nudges once per session" '[[ "$second" != *"phase boundary?"* ]]'
+check "silent below 150k" '[[ "$(submit s2 "$HT/lo.jsonl")" != *"phase boundary?"* ]]'
+check "silent when ATTENTLY_HANDOFF_AT=400000" '[[ "$(ATTENTLY_HANDOFF_AT=400000 submit s3 "$HT/hi.jsonl")" != *"phase boundary?"* ]]'
+check "silent inside a subagent (agent_id)" '[[ "$(submit s4 "$HT/hi.jsonl" ",\"agent_id\":\"a1\"")" != *"phase boundary?"* ]]'
 unset ATTENTLY_HANDOFF_DIR
 
 echo ""
