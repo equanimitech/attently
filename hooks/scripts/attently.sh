@@ -96,6 +96,25 @@ ring_hook() {
   "$1" "$INPUT" >/dev/null 2>&1 || true
 }
 
+# Handoff (A1 nudge, A2 pickup). Stamps live in $HANDOFF_DIR/<session>.offered.
+# No LLM, no network: tail + grep + jq only.
+HANDOFF_DIR="${ATTENTLY_HANDOFF_DIR:-$HOME/.claude/attently/handoff}"
+
+# Prints the nudge once per session when the last turn's context >= ATTENTLY_HANDOFF_AT (150000).
+handoff_nudge() {
+  command -v jq >/dev/null 2>&1 || return 0
+  local sid tp agent tokens
+  # one jq pass; agent_id is set only inside subagents, which have no prompts to nudge on
+  IFS=$'\t' read -r sid tp agent < <(printf '%s' "$INPUT" | jq -r '[.session_id // "", .transcript_path // "", .agent_id // ""] | @tsv' 2>/dev/null)
+  [ -n "$sid" ] && [ -z "$agent" ] && [ -f "$tp" ] || return 0
+  [ -e "$HANDOFF_DIR/$sid.offered" ] && return 0
+  tokens=$(tail -c 200000 "$tp" | grep '"cache_read_input_tokens"' | tail -n 1 |
+    jq -r '.message.usage | (.input_tokens // 0) + (.cache_creation_input_tokens // 0) + (.cache_read_input_tokens // 0)' 2>/dev/null)
+  [ "${tokens:-0}" -ge "${ATTENTLY_HANDOFF_AT:-150000}" ] 2>/dev/null || return 0
+  mkdir -p "$HANDOFF_DIR" && : > "$HANDOFF_DIR/$sid.offered"
+  printf '[attently] context %sk — hand off? end this turn with ✋ waiting on you: /handoff or carry on\n' "$((tokens / 1000))"
+}
+
 case "${2:-}" in
   session-start)
     [ -f "$ROOT/contract/session-start.md" ] || exit 0
@@ -114,6 +133,7 @@ case "${2:-}" in
     ;;
   user-submit)
     [ -f "$ROOT/contract/turn.md" ] && cat "$ROOT/contract/turn.md"
+    handoff_nudge
     ring_hook ring_prompt
     ;;
   stop) ring_hook ring_stop ;;
