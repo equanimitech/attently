@@ -96,7 +96,7 @@ ring_hook() {
   "$1" "$INPUT" >/dev/null 2>&1 || true
 }
 
-# Handoff (A1 nudge, A2 pickup). Stamps live in $HANDOFF_DIR/<session>.offered.
+# Handoff (A1 nudge, A2 pickup). Briefs live in $HANDOFF_DIR/<key>.md; key = cmux surface, else cwd slug.
 # No LLM, no network: tail + grep + jq only.
 HANDOFF_DIR="${ATTENTLY_HANDOFF_DIR:-$HOME/.claude/attently/handoff}"
 
@@ -115,10 +115,26 @@ handoff_nudge() {
   printf '[attently] context %sk — hand off? end this turn with ✋ waiting on you: /handoff or carry on\n' "$((tokens / 1000))"
 }
 
+# Prints the pickup line for this surface's (else cwd's, < 6 h) brief and renames it .consumed.
+handoff_pickup() {
+  local cwd f
+  cwd=$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null)
+  [ -n "$cwd" ] || cwd="$PWD"
+  f="$HANDOFF_DIR/${CMUX_SURFACE_ID:-_}.md"
+  if [ ! -f "$f" ]; then
+    f="$HANDOFF_DIR/${cwd//\//-}.md"
+    [ -n "$(find "$f" -mmin -360 2>/dev/null)" ] || return 0
+  fi
+  mv "$f" "$f.consumed" 2>/dev/null || return 0
+  printf 'Resume brief: %s — read it first.' "$f.consumed"
+}
+
 case "${2:-}" in
   session-start)
     [ -f "$ROOT/contract/session-start.md" ] || exit 0
     content=$(cat "$ROOT/contract/session-start.md")
+    pickup=$(handoff_pickup)
+    [ -n "$pickup" ] && content+=$'\n\n'"$pickup"
     escaped=$(escape_for_json "$content")
 
     # Platform detection: Claude Code, Cursor, Copilot CLI, or unknown.

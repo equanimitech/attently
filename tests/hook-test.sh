@@ -850,6 +850,25 @@ unset ATTENTLY_HANDOFF_DIR
 
 echo ""
 
+# --- handoff pickup ---
+
+echo "Handoff pickup:"
+HT=$(mktemp -d); export ATTENTLY_HANDOFF_DIR="$HT/handoff"; mkdir -p "$ATTENTLY_HANDOFF_DIR"
+echo "brief" > "$ATTENTLY_HANDOFF_DIR/surf-1.md"
+pick() { printf '{"cwd":"/work/x"}' | CLAUDE_PLUGIN_ROOT="$ROOT" CMUX_SURFACE_ID="$1" bash "$SCRIPT" hook session-start 2>/dev/null | python3 -c "import json,sys; print(json.load(sys.stdin)['hookSpecificOutput']['additionalContext'])"; }
+p1=$(pick surf-1); p2=$(pick surf-1)
+check "injects the brief path" '[[ "$p1" == *"Resume brief: $ATTENTLY_HANDOFF_DIR/surf-1.md.consumed — read it first."* ]]'
+check "renames the brief to .consumed" '[ -f "$ATTENTLY_HANDOFF_DIR/surf-1.md.consumed" ] && [ ! -f "$ATTENTLY_HANDOFF_DIR/surf-1.md" ]'
+check "second SessionStart injects nothing" '[[ "$p2" != *"Resume brief"* ]]'
+echo "brief" > "$ATTENTLY_HANDOFF_DIR/-work-x.md"
+check "cwd fallback outside cmux" '[[ "$(pick "")" == *"Resume brief: $ATTENTLY_HANDOFF_DIR/-work-x.md.consumed"* ]]'
+echo "old" > "$ATTENTLY_HANDOFF_DIR/-work-x.md"; touch -t 202001010000 "$ATTENTLY_HANDOFF_DIR/-work-x.md"
+check "cwd brief older than 6 h is ignored" '[[ "$(pick "")" != *"Resume brief"* ]]'
+check "skills/handoff exists, model invocation disabled" 'grep -q "disable-model-invocation: true" "$ROOT/skills/handoff/SKILL.md"'
+unset ATTENTLY_HANDOFF_DIR
+
+echo ""
+
 # --- summary ---
 
 TOTAL=$((PASS + FAIL))
