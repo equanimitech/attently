@@ -841,7 +841,7 @@ mkfx() { printf '{"type":"assistant","message":{"usage":{"input_tokens":5,"cache
 mkfx "$HT/hi.jsonl" 160000; mkfx "$HT/lo.jsonl" 100000
 submit() { printf '{"session_id":"%s","transcript_path":"%s"%s}' "$1" "$2" "${3:-}" | bash "$SCRIPT" hook user-submit 2>/dev/null; }
 first=$(submit s1 "$HT/hi.jsonl"); second=$(submit s1 "$HT/hi.jsonl")
-check "nudges above 150k" '[[ "$first" == *"context 162k — phase boundary?"* ]]'
+check "nudges above 150k" '[[ "$first" == *"context 162k — hand off at the next phase boundary?"* ]]'
 mkfx "$HT/m.jsonl" 213000; mkfx "$HT/n.jsonl" 228000
 r1=$(submit s5 "$HT/hi.jsonl"); r2=$(submit s5 "$HT/m.jsonl"); r2b=$(submit s5 "$HT/m.jsonl"); r3=$(submit s5 "$HT/n.jsonl")
 check "re-nudges after 60k growth (215k)" '[[ "$r1" == *"phase boundary?"* && "$r2" == *"context 215k"* ]]'
