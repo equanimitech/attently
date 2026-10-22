@@ -833,6 +833,42 @@ done
 
 echo ""
 
+# --- handoff nudge (fixture transcript, last usage = 5 + 2000 + 160000) ---
+
+echo "Handoff nudge:"
+HT=$(mktemp -d); export ATTENTLY_HANDOFF_DIR="$HT/handoff"
+mkfx() { printf '{"type":"assistant","message":{"usage":{"input_tokens":5,"cache_creation_input_tokens":2000,"cache_read_input_tokens":%s}}}\n' "$2" > "$1"; }
+mkfx "$HT/hi.jsonl" 160000; mkfx "$HT/lo.jsonl" 100000
+submit() { printf '{"session_id":"%s","transcript_path":"%s"%s}' "$1" "$2" "${3:-}" | bash "$SCRIPT" hook user-submit 2>/dev/null; }
+first=$(submit s1 "$HT/hi.jsonl"); second=$(submit s1 "$HT/hi.jsonl")
+check "nudges above 150k" '[[ "$first" == *"context 162k — hand off?"* ]]'
+check "nudges once per session" '[[ "$second" != *"hand off?"* ]]'
+check "silent below 150k" '[[ "$(submit s2 "$HT/lo.jsonl")" != *"hand off?"* ]]'
+check "silent when ATTENTLY_HANDOFF_AT=400000" '[[ "$(ATTENTLY_HANDOFF_AT=400000 submit s3 "$HT/hi.jsonl")" != *"hand off?"* ]]'
+check "silent inside a subagent (agent_id)" '[[ "$(submit s4 "$HT/hi.jsonl" ",\"agent_id\":\"a1\"")" != *"hand off?"* ]]'
+unset ATTENTLY_HANDOFF_DIR
+
+echo ""
+
+# --- handoff pickup ---
+
+echo "Handoff pickup:"
+HT=$(mktemp -d); export ATTENTLY_HANDOFF_DIR="$HT/handoff"; mkdir -p "$ATTENTLY_HANDOFF_DIR"
+echo "brief" > "$ATTENTLY_HANDOFF_DIR/surf-1.md"
+pick() { printf '{"cwd":"/work/x"}' | CLAUDE_PLUGIN_ROOT="$ROOT" CMUX_SURFACE_ID="$1" bash "$SCRIPT" hook session-start 2>/dev/null | python3 -c "import json,sys; print(json.load(sys.stdin)['hookSpecificOutput']['additionalContext'])"; }
+p1=$(pick surf-1); p2=$(pick surf-1)
+check "injects the brief path" '[[ "$p1" == *"Resume brief: $ATTENTLY_HANDOFF_DIR/surf-1.md.consumed — read it first."* ]]'
+check "renames the brief to .consumed" '[ -f "$ATTENTLY_HANDOFF_DIR/surf-1.md.consumed" ] && [ ! -f "$ATTENTLY_HANDOFF_DIR/surf-1.md" ]'
+check "second SessionStart injects nothing" '[[ "$p2" != *"Resume brief"* ]]'
+echo "brief" > "$ATTENTLY_HANDOFF_DIR/-work-x.md"
+check "cwd fallback outside cmux" '[[ "$(pick "")" == *"Resume brief: $ATTENTLY_HANDOFF_DIR/-work-x.md.consumed"* ]]'
+echo "old" > "$ATTENTLY_HANDOFF_DIR/-work-x.md"; touch -t 202001010000 "$ATTENTLY_HANDOFF_DIR/-work-x.md"
+check "cwd brief older than 6 h is ignored" '[[ "$(pick "")" != *"Resume brief"* ]]'
+check "skills/handoff exists, model invocation disabled" 'grep -q "disable-model-invocation: true" "$ROOT/skills/handoff/SKILL.md"'
+unset ATTENTLY_HANDOFF_DIR
+
+echo ""
+
 # --- summary ---
 
 TOTAL=$((PASS + FAIL))
