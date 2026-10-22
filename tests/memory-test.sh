@@ -35,6 +35,8 @@ cat > "$M/MEMORY.md" <<'IDX'
 - [Links](project_links.md) · [Bad](reference_bad.md) · [NoFm](reference_nofm.md)
 IDX
 
+hook() { printf '{"tool_name":"Write","tool_input":{"file_path":"%s"}}' "$1" | MEMORY_DIR="$M" bash "$SCRIPT" check-write; }
+
 echo "compact:"
 sum0=$(cksum <"$M/MEMORY.md")
 out=$(bash "$SCRIPT" compact "$M")
@@ -45,6 +47,29 @@ check "trap gets warning prefix"          '[[ "$idx" == *"⚠ risky: careful"* ]
 check "shipped entry leaves the index"    '[[ "$idx" != *"done"* ]]'
 check "shipped entry in archive moves"    '[[ "$out" == *"[Done](project_done.md) shipped 10-15"* ]]'
 check "reports before/after bytes"        '[[ "$out" == *"- before: "* && "$out" == *"- after: "* ]]'
+
+echo "check-write:"
+check "valid write prints nothing"        '[ -z "$(hook "$M/reference_clean.md")" ]'
+w=$(hook "$M/reference_bad.md")
+check "bad type warns"                    '[[ "$w" == *foo* ]]'
+check "bad stale_after warns"             '[[ "$w" == *"next week"* ]]'
+check "one line only"                     '[ "$(printf "%s\n" "$w" | wc -l | tr -d " ")" = 1 ]'
+check "missing frontmatter warns"         '[[ "$(hook "$M/reference_nofm.md")" == *"no frontmatter"* ]]'
+w=$(hook "$M/project_links.md")
+check "broken [[link]] warns"             '[[ "$w" == *"broken link [[nowhere]]"* ]]'
+check "[[link]] rewritten"                'grep -q "\[reference_clean\](reference_clean.md)" "$M/project_links.md" && ! grep -q "\[\[" "$M/project_links.md"'
+fm orphan reference > "$M/reference_orphan.md"
+check "file absent from index warns"      '[[ "$(hook "$M/reference_orphan.md")" == *"not in MEMORY.md"* ]]'
+check "non-memory path ignored"           '[ -z "$(hook /tmp/other.md)" ]'
+check "extra key outside metadata warns"  'printf -- "---\nname: x\nstale_after: 2020-01-01\nmetadata:\n  type: reference\n---\n" > "$M/reference_clean.md"; [[ "$(hook "$M/reference_clean.md")" == *"must live under metadata"* ]]'
+fm clean reference > "$M/reference_clean.md"
+
+echo "stale:"
+s=$(MEMORY_DIR="$M" bash "$SCRIPT" stale </dev/null)
+check "one stale memory line"             '[[ "$s" == *"[attently] 1 stale memory: "* && "$s" == *"reference_old (2020-01-01)"* ]]'
+check "fresh and invalid dates ignored"   '[[ "$s" != *fresh* && "$s" != *reference_bad* ]]'
+rm "$M/reference_old.md"
+check "silent when none stale"            '[ -z "$(MEMORY_DIR="$M" bash "$SCRIPT" stale </dev/null)" ]'
 
 echo ""
 echo "$PASS passed, $FAIL failed"

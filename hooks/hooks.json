@@ -16,6 +16,20 @@
             "statusMessage": "attently: depth contract"
           }
         ]
+      },
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/memory.sh",
+              "stale"
+            ],
+            "timeout": 5
+          }
+        ]
       }
     ],
     "UserPromptSubmit": [
@@ -92,6 +106,22 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/attently.sh",
               "hook",
               "subagent-stop"
+            ],
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/memory.sh",
+              "check-write"
             ],
             "timeout": 5
           }
