@@ -783,7 +783,7 @@ echo ""
 # --- skills ---
 
 echo "Skills:"
-for skill in glance-click-ask writing-the-glance scan-first-rendering visual-pitch linking-the-working depth-ladder; do
+for skill in glance-press-ask writing-the-glance scan-first-rendering visual-pitch linking-the-working depth-ladder; do
   check "$skill" '[ -f "$ROOT/skills/'"$skill"'/SKILL.md" ]'
 done
 check "visual-pitch example" '[ -f "$ROOT/skills/visual-pitch/examples/signet-pitch-yanik.md" ]'
@@ -805,7 +805,7 @@ echo ""
 
 echo "Manifest honesty:"
 PJ="$ROOT/.claude-plugin/plugin.json"
-check "version 0.6.1" '[ "$(jq -r .version "$PJ")" = 0.6.1 ]'
+check "version 0.7.0" '[ "$(jq -r .version "$PJ")" = 0.7.0 ]'
 check "manifest no longer claims to store nothing" '! grep -qi "stores nothing" "$PJ"'
 check "manifest names where the ring stores" 'grep -q "~/.claude/attently/ring/" "$PJ"'
 check "manifest names what it reads" 'grep -q "today.md" "$PJ" && grep -q "phaseConfigs" "$PJ" && grep -q "areas.md" "$PJ" && grep -q "ai-title" "$PJ"'
@@ -827,7 +827,7 @@ echo ""
 # --- skill descriptions say "deep reference" ---
 
 echo "Skill descriptions (deep reference):"
-for skill in glance-click-ask writing-the-glance scan-first-rendering linking-the-working depth-ladder; do
+for skill in glance-press-ask writing-the-glance scan-first-rendering linking-the-working depth-ladder; do
   check "$skill says deep reference" 'grep -qi "deep reference" "$ROOT/skills/'"$skill"'/SKILL.md"'
 done
 

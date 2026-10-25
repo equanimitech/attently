@@ -1,7 +1,7 @@
 # Why gross-to-subtle works
 
 attently is a communication discipline grounded in how attention actually works. The depth
-contract -- glance, click, ask -- is not an arbitrary format. It is the body scan applied
+contract -- glance, press, ask -- is not an arbitrary format. It is the body scan applied
 to information delivery.
 
 ## The body scan order
@@ -17,7 +17,7 @@ This is attently's depth contract:
 Vipassana body scan              attently
 ────────────────────             ──────────────────────
 gross sensation first        →   verdict in the reply (glance)
-subtle only when ready       →   evidence on disk (click)
+subtle only when ready       →   evidence on disk (press)
 unexplored = not yet         →   branch not taken (ask)
 the observer chooses         →   the reader controls depth
 equanimity, not reaction     →   proportional, not impressive
@@ -65,7 +65,7 @@ attently is an [equanimitech](https://equanimi.tech) product. The equanimitech p
 Sovereignty, Awareness, Equanimity -- applied to communication:
 
 **Sovereignty.** The reader controls their depth of engagement. The plugin never imposes depth.
-The click tier exists on disk, not in the reply. The ask tier exists nowhere until the reader
+The press tier exists on disk, not in the reply. The ask tier exists nowhere until the reader
 calls for it. This is not a feature -- it is the point.
 
 **Awareness.** The wiki persists what was observed so future attention finds it. Scan-first

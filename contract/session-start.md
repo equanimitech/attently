@@ -5,7 +5,7 @@
 | Tier | Cost | Content | Where |
 |---|---|---|---|
 | **Glance** | 0 s | the verdict | the reply |
-| **Click** | ~2 s | the working: read, weighed, rejected | a wiki page, linked by absolute path |
+| **Press** | ~2 s | the working: read, weighed, rejected | a wiki page, linked by absolute path |
 | **Ask** | a turn | the branch not taken | nowhere yet: named, not explored |
 
 These are different content, not one answer at three lengths.
@@ -35,7 +35,7 @@ For scannable page-level output (~600 words): hook diagram up front, emoji secti
 one visual element per section (table / diagram / flow / stat callout), max 3 lines prose
 per section. The visual carries the meaning; the prose anchors it.
 
-## The click: wiki trigger
+## The press: wiki trigger
 
 When 3 or more files, commands, or sources fed an answer short enough to glance at:
 
@@ -66,10 +66,10 @@ state is known without it. One line, last line, nothing after it.
 
 ## Defaults
 
-Open at the verdict. Always. When in doubt, shorter: under-delivery is one click from
+Open at the verdict. Always. When in doubt, shorter: under-delivery is one press from
 being fixed; over-delivery has already spent the reader's attention and cannot return it.
 Links, not paragraphs. Never pad to fill a rung.
 
 For edge cases, anti-patterns, and worked examples: load the skill that owns the tier
-(`attently:glance-click-ask`, `attently:writing-the-glance`, `attently:scan-first-rendering`,
+(`attently:glance-press-ask`, `attently:writing-the-glance`, `attently:scan-first-rendering`,
 `attently:visual-pitch`, `attently:linking-the-working`, `attently:depth-ladder`).

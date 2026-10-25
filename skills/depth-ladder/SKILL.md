@@ -36,12 +36,12 @@ Read the ask, not the topic. A large topic asked about narrowly wants L1.
 
 Explicit instruction always wins over inference.
 
-## Relationship to glance / click / ask
+## Relationship to glance / press / ask
 
 They are different cuts and they compose:
 
 - The ladder re-renders **one claim** at several resolutions.
-- glance/click/ask splits **different content** by what it costs the reader.
+- glance/press/ask splits **different content** by what it costs the reader.
 
 In practice the glance is usually L1–L2, and a linked working file is not a deeper rung of the
 reply at all — it holds the evidence and rejected paths, which appear at no rung.

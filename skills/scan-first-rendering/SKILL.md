@@ -26,7 +26,7 @@ worse than a paragraph of reasoning.
 
 ```
 ask ──▶ glance (reply)
-          └──▶ click (file)
+          └──▶ press (file)
                  └──▶ ask (new turn)
 ```
 

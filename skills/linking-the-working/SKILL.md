@@ -1,11 +1,11 @@
 ---
 name: linking-the-working
-description: "Deep reference for the click-tier wiki. The 3+ sources trigger, naming convention, and cross-linking rules are injected at session start; load this skill only for wiki mechanics, anti-patterns, and the revisit-don't-re-add protocol. Use when the user says \"keep the detail somewhere\" or when wiki page structure needs attention."
+description: "Deep reference for the press-tier wiki. The 3+ sources trigger, naming convention, and cross-linking rules are injected at session start; load this skill only for wiki mechanics, anti-patterns, and the revisit-don't-re-add protocol. Use when the user says \"keep the detail somewhere\" or when wiki page structure needs attention."
 ---
 
 # Linking the working
 
-The **click** tier of `glance-click-ask`. The reply carries the verdict; this carries what
+The **press** tier of `glance-press-ask`. The reply carries the verdict; this carries what
 produced it.
 
 ## The problem it solves
@@ -49,7 +49,7 @@ All of these must hold:
 - The evidence would otherwise be discarded.
 
 Do **not** write for a conversational answer, a restatement of the reply at greater length, or
-"in case it's useful". A page that returns nothing new costs a click and repays nothing.
+"in case it's useful". A page that returns nothing new costs a press and repays nothing.
 
 ## What goes on a page
 

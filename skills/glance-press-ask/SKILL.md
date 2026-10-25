@@ -1,16 +1,16 @@
 ---
-name: glance-click-ask
+name: glance-press-ask
 description: "Deep reference for the depth contract. The essential rules are injected at session start; load this skill only for edge cases, anti-patterns, and the full rationale. Use when the user says \"too much detail\", \"shorter\", \"tl;dr\", \"go deeper\", or \"expand\", or when rationing depth across many parallel sessions."
 ---
 
-# Glance · Click · Ask
+# Glance · Press · Ask
 
 Three tiers, sorted by what they cost **the reader** — not by how much text they contain.
 
 | Tier | Cost | Holds | Lives in |
 |---|---|---|---|
 | **Glance** | 0s | the verdict | the reply |
-| **Click** | ~2s | the working — read, weighed, rejected | a file, linked by absolute path |
+| **Press** | ~2s | the working — read, weighed, rejected | a file, linked by absolute path |
 | **Ask** | a turn | the branch not taken | nowhere yet |
 
 ## The rule that makes it work
@@ -25,7 +25,7 @@ conclusion, not an abridgement of it.
 ## Defaults
 
 - **Open at the verdict.** Always. The glance is not a summary of the answer, it *is* the answer.
-- **When in doubt, shorter.** Under-delivery is one click away from being fixed. Over-delivery
+- **When in doubt, shorter.** Under-delivery is one press away from being fixed. Over-delivery
   has already spent the reader's attention and cannot give it back.
 - **Links, not paragraphs.** If depth exists, point at it. Do not inline it as a courtesy.
 - **Never pad to fill a rung.** A one-line answer that is complete is finished. There is no
@@ -37,7 +37,7 @@ Only when **real work would otherwise be discarded** — you read six files, wei
 approaches, killed two. That reasoning is in context and dies with the reply.
 
 Not every turn. A conversational answer with no investigation behind it has no working to
-persist, and a file full of restated conclusions is worse than no file: it costs a click and
+persist, and a file full of restated conclusions is worse than no file: it costs a press and
 returns nothing new. See `linking-the-working`.
 
 ## When to spend a turn
@@ -63,4 +63,4 @@ attently owns the posture; these own the prose, and all ship with it:
   than read.
 - `depth-ladder` — the five-rung ladder, for the cases where one claim genuinely needs several
   resolutions.
-- `linking-the-working` — the click tier: persist the evidence into a project wiki and link it.
+- `linking-the-working` — the press tier: persist the evidence into a project wiki and link it.

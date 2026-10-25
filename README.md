@@ -18,7 +18,7 @@ attently applies the equanimitech pyramid (Sovereignty, Awareness, Equanimity) t
 | Tier | Cost | Holds | Lives in |
 |---|---|---|---|
 | **Glance** | 0s | the verdict | the reply |
-| **Click** | ~2s | the working: read, weighed, rejected | a wiki, linked by absolute path |
+| **Press** | ~2s | the working: read, weighed, rejected | a wiki, linked by absolute path |
 | **Ask** | a turn | the branch not taken | nowhere yet |
 
 These are **different content**, not one answer at three lengths. A rung ladder re-renders the
@@ -42,7 +42,7 @@ four paragraphs. attently injects the contract at session start and a one-line r
 turn. The rendering rules ride along with the contract so the assistant knows *how*, not just
 *what*.
 
-## The click tier is a wiki
+## The press tier is a wiki
 
 Depth does not go into dated scratch files that are never reread. It goes into
 `.claude/attently/` as pages named by subject, cross-linked with `[[wikilinks]]` and fronted by
@@ -51,11 +51,11 @@ an `index.md`. Investigating the same subject twice edits the page rather than a
 The trigger is countable: **3 or more files, commands, or sources** fed the answer. That number
 is checkable before replying rather than resolved by taste.
 
-The click tier compounds instead of littering.
+The press tier compounds instead of littering.
 
 ## The ring: the contract across many sessions
 
-Glance, click, ask works for one reply. With ten sessions open, the question moves up a level:
+Glance, press, ask works for one reply. With ten sessions open, the question moves up a level:
 *which session deserves me now?* Inside [cmux](https://cmux.com), the ring answers it without
 tab-hunting. Calm technology: the day's priority sits at the center, auxiliary work stays in
 the periphery and moves inward only when it matters.
@@ -115,7 +115,7 @@ from cmux Feed, Ctrl-4); otherwise its last line can say `✋ waiting on you: <d
 marker is optional: waiting and done come from cmux's own agent events. Only
 `✋ … · blocks: DC` escalates a peripheral session to DC's layer.
 
-The `ring` sidebar is Glance, Ask, Click, top to bottom:
+The `ring` sidebar is Glance, Ask, Press, top to bottom:
 
 ```
 Loops                             Glance: what is open, oldest first
@@ -214,7 +214,7 @@ the tab turns `✋`.
   automation fires. Nothing else about you.
 - **Writes to cmux**: Claude tab titles, tab order within a pane (only when a layer changes),
   workspace descriptions, workspace titles (from `areas.md`, only where you have not named the
-  workspace), one notification per day-phase, and -- only when you tap a sidebar Click or run
+  workspace), one notification per day-phase, and -- only when you tap a sidebar Press or run
   a ritual -- a new tab (ritual, `+ Claude`) or workspace (the ritual's area). It
   never sends input to a session and never moves focus by itself.
 - **Blocks nothing.** It never denies a tool or fails a turn. Every hook exits 0; cmux calls
@@ -246,11 +246,11 @@ Self-contained. Nothing else to install, and it depends on no other plugin or sk
 
 | Skill (deep reference) | Owns |
 |---|---|
-| `glance-click-ask` | the contract and its defaults |
+| `glance-press-ask` | the contract and its defaults |
 | `writing-the-glance` | verdict tier: lead with the claim, cut what earns nothing |
 | `scan-first-rendering` | tables, small diagrams, structure over paragraphs |
 | `visual-pitch` | scannable page-level output: hook diagrams, emoji nav, visual-per-section |
-| `linking-the-working` | the click tier: the project wiki and how to link it |
+| `linking-the-working` | the press tier: the project wiki and how to link it |
 | `depth-ladder` | five rungs, for when one claim needs several resolutions |
 
 `hooks/` carries the session-start contract, the per-turn reminder, and the ring; `contract/` holds their
