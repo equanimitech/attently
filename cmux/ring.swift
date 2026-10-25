@@ -1,4 +1,4 @@
-// attently ring -- Glance, Ask, Press over the Claude sessions in cmux.
+// attently ring -- Glance, Press, Ask over the Claude sessions in cmux.
 //
 // Top to bottom: the loops (Glance: ✋ waiting on you and ✓ done and not yet seen, oldest
 // first, then …N subagents still running; tap one to go to its tab), then every workspace in
