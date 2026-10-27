@@ -30,8 +30,8 @@ have the conclusion, not an abridgement of it.
 The session-start hook injects the full depth contract *and* the rendering rules into every
 session. Inside cmux, prompt / Stop / SessionEnd / Subagent hooks add the ring (below). No CLAUDE.md edits needed. No skill loads required for the rules to take effect.
 
-Skills exist for deep reference only -- edge cases, anti-patterns, worked examples. The ambient
-injection carries everything a session needs to change behavior.
+The injection carries everything a session needs to change behavior. The one skill is
+`/handoff`, which you run yourself.
 
 ## Why a hook, not a skill
 
@@ -270,14 +270,9 @@ Self-contained. Nothing else to install, and it depends on no other plugin or sk
 | `cmux/automations.json` | cmux event rules for waiting states (`attently-ring install automations`) |
 | `cmux/dock.json` | ☀️ 🥗 🌙 ritual Dock controls (`attently-ring install dock`) |
 
-| Skill (deep reference) | Owns |
+| Skill | Owns |
 |---|---|
-| `glance-press-ask` | the contract and its defaults |
-| `writing-the-glance` | verdict tier: lead with the claim, cut what earns nothing |
-| `scan-first-rendering` | tables, small diagrams, structure over paragraphs |
-| `visual-pitch` | scannable page-level output: hook diagrams, emoji nav, visual-per-section |
-| `linking-the-working` | the press tier: the project wiki and how to link it |
-| `depth-ladder` | five rungs, for when one claim needs several resolutions |
+| `handoff` | a resume brief for the next session in this pane (`/handoff`) |
 
 `hooks/` carries the session-start contract, the per-turn reminder, and the ring; `contract/` holds their
 text as data -- editable without touching code, and readable by anyone auditing what the plugin
