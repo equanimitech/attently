@@ -69,7 +69,3 @@ state is known without it. One line, last line, nothing after it.
 Open at the verdict. Always. When in doubt, shorter: under-delivery is one press from
 being fixed; over-delivery has already spent the reader's attention and cannot return it.
 Links, not paragraphs. Never pad to fill a rung.
-
-For edge cases, anti-patterns, and worked examples: load the skill that owns the tier
-(`attently:glance-press-ask`, `attently:writing-the-glance`, `attently:scan-first-rendering`,
-`attently:visual-pitch`, `attently:linking-the-working`, `attently:depth-ladder`).

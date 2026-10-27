@@ -30,8 +30,8 @@ have the conclusion, not an abridgement of it.
 The session-start hook injects the full depth contract *and* the rendering rules into every
 session. Inside cmux, prompt / Stop / SessionEnd / Subagent hooks add the ring (below). No CLAUDE.md edits needed. No skill loads required for the rules to take effect.
 
-Skills exist for deep reference only -- edge cases, anti-patterns, worked examples. The ambient
-injection carries everything a session needs to change behavior.
+The injection carries everything a session needs to change behavior. The one skill is
+`/handoff`, which you run yourself.
 
 ## Why a hook, not a skill
 
@@ -193,6 +193,27 @@ the tab turns `✋`.
 `attently-ring restore` gives every tab, description and workspace title back;
 `cmux automation logs` shows each firing.
 
+## As a mod
+
+On a Claude Code build that loads hooks modules (mods; tested on 2.1.311), `hooks/register.tsx`
+adds four things beside the shell hooks:
+
+- **The contract as a system-prompt section** (`attently:contract`). It survives `/compact`, so
+  the shell hooks' contract text and per-turn reminder stand down: the module takes that text
+  out of what they hand the model and keeps the handoff lines.
+- **A turn band** above the prompt, idle after a turn: the marker glyph (`✓`, `✋`, or `·` for
+  none), then one button per reply in the `replies` option (`Close up · Commit and push · Go
+  ahead`; change it in `/plugin`). A press submits that text. Gone while a turn runs or the
+  prompt holds text.
+- **Read feedback.** A reply linking `.claude/attently/<page>.md` adds **Open <page>** to the
+  band, drawing the page in a pane (Esc closes it). Your next typed prompt carries one line for
+  Claude: `attently: the reader opened <page>`, or `did not open <page>`.
+- **`/ring`**, a pane with one row per session card (topic, state, age, repo), polled every 5 s
+  while open, a **Close up** per row that messages that session, and **Midday**
+  (`/zenborg:midday`).
+
+Without mods, the shell hooks run alone, exactly as in 0.7.0.
+
 ## What it stores, reads, and blocks
 
 - **Stores**, only inside cmux, under `~/.claude/attently/`:
@@ -217,6 +238,10 @@ the tab turns `✋`.
   workspace), one notification per day-phase, and -- only when you tap a sidebar Press or run
   a ritual -- a new tab (ritual, `+ Claude`) or workspace (the ritual's area). It
   never sends input to a session and never moves focus by itself.
+- **As a mod**, also outside cmux: each session's card in `ring/sessions/<session>.json`
+  (session, directory, state, marker, time), merged so the ring's own fields stay and removed
+  at session end; it reads the wiki pages a reply links, and sends a session a close-up message
+  only when you press its **Close up**.
 - **Blocks nothing.** It never denies a tool or fails a turn. Every hook exits 0; cmux calls
   run detached and time-boxed.
 - **Depends on** `bash` and `cat` for the contract; `jq`, `perl` and cmux for the ring, which
@@ -240,18 +265,14 @@ Self-contained. Nothing else to install, and it depends on no other plugin or sk
 | `contract/session-start.md` | the ambient ruleset: depth contract + rendering rules + wiki trigger |
 | `contract/turn.md` | per-turn reminder (one line) |
 | `hooks/scripts/ring.sh` | the ring: classifier, session cards, cmux painting, rituals, notification policy |
+| `hooks/register.tsx` | the mod: contract section, turn band, read feedback, `/ring` pane |
 | `cmux/ring.swift` | the cmux custom sidebar (`attently-ring install sidebar`) |
 | `cmux/automations.json` | cmux event rules for waiting states (`attently-ring install automations`) |
 | `cmux/dock.json` | ☀️ 🥗 🌙 ritual Dock controls (`attently-ring install dock`) |
 
-| Skill (deep reference) | Owns |
+| Skill | Owns |
 |---|---|
-| `glance-press-ask` | the contract and its defaults |
-| `writing-the-glance` | verdict tier: lead with the claim, cut what earns nothing |
-| `scan-first-rendering` | tables, small diagrams, structure over paragraphs |
-| `visual-pitch` | scannable page-level output: hook diagrams, emoji nav, visual-per-section |
-| `linking-the-working` | the press tier: the project wiki and how to link it |
-| `depth-ladder` | five rungs, for when one claim needs several resolutions |
+| `handoff` | a resume brief for the next session in this pane (`/handoff`) |
 
 `hooks/` carries the session-start contract, the per-turn reminder, and the ring; `contract/` holds their
 text as data -- editable without touching code, and readable by anyone auditing what the plugin

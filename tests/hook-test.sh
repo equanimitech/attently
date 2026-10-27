@@ -783,10 +783,8 @@ echo ""
 # --- skills ---
 
 echo "Skills:"
-for skill in glance-press-ask writing-the-glance scan-first-rendering visual-pitch linking-the-working depth-ladder; do
-  check "$skill" '[ -f "$ROOT/skills/'"$skill"'/SKILL.md" ]'
-done
-check "visual-pitch example" '[ -f "$ROOT/skills/visual-pitch/examples/signet-pitch-yanik.md" ]'
+check "handoff is the only skill" '[ "$(ls "$ROOT/skills")" = handoff ]'
+check "contract names no removed skill" '! grep -q "attently:" "$ROOT/contract/session-start.md"'
 
 echo ""
 
@@ -805,7 +803,7 @@ echo ""
 
 echo "Manifest honesty:"
 PJ="$ROOT/.claude-plugin/plugin.json"
-check "version 0.7.0" '[ "$(jq -r .version "$PJ")" = 0.7.0 ]'
+check "version 0.8.0" '[ "$(jq -r .version "$PJ")" = 0.8.0 ]'
 check "manifest no longer claims to store nothing" '! grep -qi "stores nothing" "$PJ"'
 check "manifest names where the ring stores" 'grep -q "~/.claude/attently/ring/" "$PJ"'
 check "manifest names what it reads" 'grep -q "today.md" "$PJ" && grep -q "phaseConfigs" "$PJ" && grep -q "areas.md" "$PJ" && grep -q "ai-title" "$PJ"'
@@ -821,15 +819,6 @@ check "README: selecting the sidebar turns on the custom-sidebar beta" 'grep -q 
 check "README: nothing is installed into cmux without asking" 'grep -q "install automations" "$ROOT/README.md" && grep -q "install dock" "$ROOT/README.md"'
 check "hooks.json registers Stop, UserPromptSubmit, SessionEnd" 'jq -e ".hooks.Stop and .hooks.UserPromptSubmit and .hooks.SessionEnd" "$ROOT/hooks/hooks.json"'
 check "hooks.json registers SubagentStart, SubagentStop through attently.sh" 'jq -e ".hooks.SubagentStart[0].hooks[0].args[2] == \"subagent-start\" and .hooks.SubagentStop[0].hooks[0].args[2] == \"subagent-stop\"" "$ROOT/hooks/hooks.json"'
-
-echo ""
-
-# --- skill descriptions say "deep reference" ---
-
-echo "Skill descriptions (deep reference):"
-for skill in glance-press-ask writing-the-glance scan-first-rendering linking-the-working depth-ladder; do
-  check "$skill says deep reference" 'grep -qi "deep reference" "$ROOT/skills/'"$skill"'/SKILL.md"'
-done
 
 echo ""
 
