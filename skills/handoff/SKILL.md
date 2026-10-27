@@ -7,6 +7,15 @@ disable-model-invocation: true
 
 Write a handoff document summarising the current conversation so a fresh agent can continue the work.
 
+**When to hand off:**
+
+| Moment | Hand off? |
+|---|---|
+| research → plan, plan → implementation | yes: the plan is on disk |
+| debugging → next feature, after a failed approach | yes: clears the dead end |
+| implementation → testing | maybe |
+| mid-implementation | no: file paths and partial state are lost |
+
 **Where:** `~/.claude/attently/handoff/<key>.md`, where `<key>` is `$CMUX_SURFACE_ID`, or outside cmux the cwd with `/` replaced by `-` (`${PWD//\//-}`). Create the directory. Overwrite any existing brief for the key. attently's SessionStart hook finds it by that name, so never save it elsewhere.
 
 **Header:** the first three lines, in this order, one line each:

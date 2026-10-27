@@ -107,12 +107,16 @@ handoff_nudge() {
   # one jq pass; agent_id is set only inside subagents, which have no prompts to nudge on
   IFS=$'\t' read -r sid tp agent < <(printf '%s' "$INPUT" | jq -r '[.session_id // "", .transcript_path // "", .agent_id // ""] | @tsv' 2>/dev/null)
   [ -n "$sid" ] && [ -z "$agent" ] && [ -f "$tp" ] || return 0
-  [ -e "$HANDOFF_DIR/$sid.offered" ] && return 0
+  local at=${ATTENTLY_HANDOFF_AT:-150000} every=${ATTENTLY_HANDOFF_EVERY:-60000} step last
   tokens=$(tail -c 200000 "$tp" | grep '"cache_read_input_tokens"' | tail -n 1 |
     jq -r '.message.usage | (.input_tokens // 0) + (.cache_creation_input_tokens // 0) + (.cache_read_input_tokens // 0)' 2>/dev/null)
-  [ "${tokens:-0}" -ge "${ATTENTLY_HANDOFF_AT:-150000}" ] 2>/dev/null || return 0
-  mkdir -p "$HANDOFF_DIR" && : > "$HANDOFF_DIR/$sid.offered"
-  printf '[attently] context %sk — hand off? end this turn with ✋ waiting on you: /handoff or carry on\n' "$((tokens / 1000))"
+  [ "${tokens:-0}" -ge "$at" ] 2>/dev/null || return 0
+  # step 0 = first nudge at $at, then one more per $every of growth; stamp holds the last step nudged
+  step=0; [ "$every" -gt 0 ] 2>/dev/null && step=$(((tokens - at) / every))
+  last=$(cat "$HANDOFF_DIR/$sid.offered" 2>/dev/null)
+  [ -z "$last" ] || [ "$step" -gt "${last:-0}" ] 2>/dev/null || return 0
+  mkdir -p "$HANDOFF_DIR" && printf '%s' "$step" > "$HANDOFF_DIR/$sid.offered"
+  printf '[attently] context %sk — hand off at the next phase boundary? end this turn with ✋ waiting on you: /handoff or carry on\n' "$((tokens / 1000))"
 }
 
 # Prints the pickup line for this surface's (else cwd's, < 6 h) brief and renames it .consumed.
