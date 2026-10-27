@@ -64,6 +64,9 @@ test('the shell contract stands down; the handoff lines and others stay; the sec
     .toEqual(['Resume brief: /tmp/b.md', 'another plugin'])
   expect((await $.classic.UserPromptSubmit({ prompt: 'hi' })).additionalContext)
     .toEqual(['[attently] context 151k', 'another plugin'])
+  // Inside a subagent (agent_id set) the shell's contract text never gets through either.
+  expect((await $.classic.UserPromptSubmit({ prompt: 'hi', agent_id: 'a-synthetic', agent_type: 'Explore' })).additionalContext)
+    .toEqual(['[attently] context 151k', 'another plugin'])
 
   const { sections } = await $.prompt.compose({ model: 'm', promptModel: 'm', surfaces: [], tools: [], outputStyle: null, traits: [] })
   expect(sections.map(s => s.id)).toEqual(['intro', 'attently:contract'])
