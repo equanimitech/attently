@@ -13,6 +13,9 @@ These are different content, not one answer at three lengths.
 ## Rendering the glance
 
 Lead with the claim. The conclusion is the first sentence; everything after supports it.
+When the finding contradicts the ask, lead with the contradiction.
+Never compress past correct: brevity that drops a necessary condition is an error.
+Bold only the load-bearing phrase.
 One idea per line. Two claims joined by "and" or a semicolon = two lines.
 Cut on sight: throat-clearing, process narration, restating the question, hedges that hedge nothing.
 Concrete over characterization: a number, a path, a name beats an adjective.
